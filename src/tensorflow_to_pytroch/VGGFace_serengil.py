@@ -23,7 +23,7 @@ parser.add_argument("--save-path", required=True, type=str,
                     help="Absolute path to the file, where pytorch model's weights will be saved")
 
 
-def get_tensorflow_VGGFace_serengil():
+def get_tensorflow_VGGFace_serengil(args):
     model = Sequential()
     model.add(ZeroPadding2D((1, 1), input_shape=(224, 224, 3)))
     model.add(Convolution2D(64, (3, 3), activation="relu"))
@@ -69,6 +69,9 @@ def get_tensorflow_VGGFace_serengil():
     model.add(Flatten())
     model.add(Activation("softmax"))
 
+    model.load_weights(args.weights_path)
+    model = Model(inputs=model.layers[0].input, outputs=model.layers[-2].output)
+
     return model
 
 def transfer_weights_from_tensorflow_to_pytorch(model_tf, model_pt):
@@ -101,9 +104,7 @@ def main():
     if image_data_format() == "channels_first":
         set_image_data_format("channels_last")
 
-    model_tf = get_tensorflow_VGGFace_serengil()
-    model_tf.load_weights(args.weights_path)
-    model_tf = Model(inputs=model_tf.layers[0].input, outputs=model_tf.layers[-2].output)
+    model_tf = get_tensorflow_VGGFace_serengil(args)
     model_pt = VGGFace_serengil()
 
     transfer_weights_from_tensorflow_to_pytorch(model_tf, model_pt)
