@@ -63,7 +63,6 @@ def get_tensorflow_VGGFace16_rcmalli(args):
     x = Dense(4096, name='fc7')(x)
     x = Activation('relu', name='fc7/relu')(x)
     x = Dense(2622, name='fc8')(x)
-    x = Activation('softmax', name='fc8/softmax')(x)
 
     # Create model.
     model = Model(img_input, x, name='vggface_vgg16')
