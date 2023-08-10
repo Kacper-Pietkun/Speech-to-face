@@ -118,14 +118,19 @@ class VGGFace_serengil(nn.Module):
 
         self.layer16 = nn.Sequential(
             nn.Conv2d(in_channels=4096, out_channels=2622, kernel_size=(1,1), stride=1),
-            nn.Flatten(),
-            nn.Softmax()
+            nn.Flatten()
         )
         self.layers.append(self.layer16)
 
-    def forward(self, x):
-        for layer in self.layers:
-            x = layer(x)
+    def forward(self, x, get_embedding=False):
+        for i in range(len(self.layers) - 1):
+            x = self.layers[i](x)
+
+        if get_embedding is False:
+            x = self.layers[-1](x)
+        else:
+            x = nn.Flatten()(x)
+            
         return x
 
 
@@ -233,11 +238,12 @@ class VGGFace16_rcmalli(nn.Module):
 
         self.layer16 = nn.Sequential(
             nn.Linear(in_features=4096, out_features=2622),
-            nn.Softmax()
         )
         self.layers.append(self.layer16)
 
-    def forward(self, x):
-        for layer in self.layers:
-            x = layer(x)
+    def forward(self, x, get_embedding=False):
+        for i in range(len(self.layers) - 1):
+            x = self.layers[i](x)
+        if get_embedding is False:
+            x = self.layers[-1](x)
         return x
