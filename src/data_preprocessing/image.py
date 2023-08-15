@@ -5,6 +5,8 @@ from PIL import ImageOps
 from PIL import Image
 import torch
 import torchvision.transforms as transforms
+from tqdm import tqdm
+
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
@@ -76,8 +78,8 @@ def main():
     ])
     model = load_face_encoder(args.backend, args.backend_weights_path)
 
-    for root, _, files in os.walk(args.data_dir):
-        for file_name in files:
+    for root, _, files in tqdm(os.walk(args.data_dir), desc="Outer Loop"):
+        for file_name in tqdm(files, desc="Inner Loop", leave=False):
             _, extension = os.path.splitext(file_name)
             if extension not in ACCEPTED_IMAGE_EXTENSIONS:
                 continue
