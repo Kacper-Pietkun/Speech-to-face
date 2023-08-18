@@ -16,6 +16,7 @@ You need to specify `--data-dir` and `--save-dir` arguments which tell where the
 You can choose backend i.e. model that will be used to generate embeddings. Currently, we support two backends:
 - VGG-face model from https://github.com/serengil/deepface
 - VGG-face (16) model from https://github.com/rcmalli/keras-vggface
+
 You can choose them with `--backend` parameter. You also have to provide a path to the weights for the chosen model. We downloaded them from repositories listed above, and after converting them from Tensorflow to PyTorch, we saved them in the following directory `src/models/pytorch_weights`.
 
 ## Usage
