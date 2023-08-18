@@ -2,5 +2,12 @@
 __pycache__/
 *.py[cod]
 
-# dataset folder
+# Dataset folder
 data/
+
+# Weights folder
+tensorflow_weights/
+pytorch_weights/
+
+# Debugging
+launch.json
