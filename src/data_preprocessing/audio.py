@@ -57,7 +57,7 @@ def power_law_compression(args, spectrogram):
     imag = np.imag(spectrogram)
     compressed_real = np.sign(real) * np.abs(real) ** args.power
     compressed_imag = np.sign(imag) * np.abs(imag) ** args.power
-    compressed_spectrogram = compressed_real + 1j * compressed_imag
+    compressed_spectrogram = np.stack((compressed_real, compressed_imag), axis=0)
     return compressed_spectrogram
 
 
