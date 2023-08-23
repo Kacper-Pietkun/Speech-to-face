@@ -1,4 +1,6 @@
+import torch
 import torch.nn as nn
+
 
 class VGGFace_serengil(nn.Module):
     def __init__(self):
@@ -132,6 +134,10 @@ class VGGFace_serengil(nn.Module):
             x = nn.Flatten()(x)
             
         return x
+    
+    def get_last_layer_activation(self, input):
+        input = input.unsqueeze(2).unsqueeze(3)
+        return self.layers[-1](input)
 
 
 class VGGFace16_rcmalli(nn.Module):
@@ -247,3 +253,6 @@ class VGGFace16_rcmalli(nn.Module):
         if get_embedding is False:
             x = self.layers[-1](x)
         return x
+    
+    def get_last_layer_activation(self, input):
+        return self.layers[-1](input)

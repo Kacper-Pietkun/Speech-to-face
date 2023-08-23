@@ -7,6 +7,7 @@ sys.path.append(parent)
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import torchvision.transforms as transforms
 from torch.linalg import norm
@@ -44,21 +45,36 @@ parser.add_argument("--save-model-path", type=str, default = "./best_voce_encode
 
 
 class S2FLoss(nn.Module):
-    def __init__(self, coe_1=0.025, coe_2=200):
+    def __init__(self, face_encoder_last_layer, coe_1=0.025, coe_2=200):
         super().__init__()
+        self.face_encoder_last_layer = face_encoder_last_layer
         self.coe_1 = coe_1
         self.coe_2 = coe_2
 
     def forward(self, pred, true):
-        # TODO: To loss add:
-        # - the difference in the activation of the last layer of the face encoder, f_VGG : R^4096 -> R^2622
-        # - the difference in the activation of the first layer of the face decoder, f_dec : R^4096 -> R^1000
-
+        #  v_f and v_s distance part
         vs_normalized = pred / norm(pred)
         vf_normalized = true / norm(true)
-        loss = torch.pow(norm(vf_normalized - vs_normalized), 2)
-        loss *= self.coe_1
-        return loss
+        loss_1 = torch.pow(norm(vf_normalized - vs_normalized), 2)
+        loss_1 *= self.coe_1
+
+        # face encoder last layer activation part
+        vgg_v_s = self.face_encoder_last_layer(pred)
+        with torch.no_grad():
+            vgg_v_f = self.face_encoder_last_layer(true)
+        loss_2 = self.knowledge_distilation(vgg_v_f, vgg_v_s)
+        loss_2 *= self.coe_2
+
+        # TODO: Add:
+        # the difference in the activation of the first layer of the face decoder, f_dec : R^4096 -> R^1000
+        # loss += ...
+
+        return loss_1 + loss_2
+    
+    def knowledge_distilation(self, a, b, T=2):
+        p_a = F.softmax(a / T, dim=1)
+        p_b = F.log_softmax(b / T, dim=1)
+        return -(p_a * p_b).sum()
 
 
 def get_device(choice):
@@ -90,14 +106,14 @@ def run(args, voice_encoder, face_encoder, optimizer, loss_fn, dataloader, devic
     for epoch in range(args.num_epochs):
         train_loss = 0
         voice_encoder.train()
-        for (inputs, outputs) in tqdm(dataloader):
+        for (inputs, true_embeddings) in tqdm(dataloader):
             inputs = inputs.to(device)
-            outputs = outputs.to(device)
+            true_embeddings = true_embeddings.to(device)
 
             optimizer.zero_grad()
 
-            voice_encoder_embedding = voice_encoder(inputs)
-            loss = loss_fn(voice_encoder_embedding, outputs)
+            voice_encoder_embeddings = voice_encoder(inputs)
+            loss = loss_fn(voice_encoder_embeddings, true_embeddings)
             loss.backward()
             optimizer.step()
 
@@ -119,7 +135,7 @@ def main():
     face_encoder = get_face_encoder(args.face_encoder, args.face_encoder_weights_path).to(device)
 
     optimizer = optim.Adam(voice_encoder.parameters(), lr=args.learning_rate)
-    loss_fn = S2FLoss()
+    loss_fn = S2FLoss(face_encoder.get_last_layer_activation)
 
     run(args, voice_encoder, face_encoder, optimizer, loss_fn, dataloader, device)
 
