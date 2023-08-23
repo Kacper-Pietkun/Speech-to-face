@@ -50,13 +50,13 @@ class S2FLoss(nn.Module):
         self.coe_2 = coe_2
 
     def forward(self, pred, true):
-        # TODO: To lass ad:
+        # TODO: To loss add:
         # - the difference in the activation of the last layer of the face encoder, f_VGG : R^4096 -> R^2622
         # - the difference in the activation of the first layer of the face decoder, f_dec : R^4096 -> R^1000
 
         vs_normalized = pred / norm(pred)
         vf_normalized = true / norm(true)
-        loss = torch.abs(vf_normalized - vs_normalized).sum()
+        loss = torch.pow(norm(vf_normalized - vs_normalized), 2)
         loss *= self.coe_1
         return loss
 
