@@ -7,7 +7,6 @@ import torch
 import torchvision.transforms as transforms
 from tqdm import tqdm
 
-
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
@@ -21,10 +20,10 @@ ACCEPTED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png']
 parser = ArgumentParser(description="Getting features out of images of faces")
 
 parser.add_argument("--data-dir", required=True, type=str,
-                    help="Absolute path to the directory where audio files are located")
+                    help="Absolute path to the directory where image files are located")
 
 parser.add_argument("--save-dir", required=True, type=str,
-                    help="Absolute path to the directory where spectrograms will be saved")
+                    help="Absolute path to the directory where face embeddings will be saved")
 
 parser.add_argument("--backend", default="vgg_face_serengil", type=str, choices=["vgg_face_serengil", "vgg_face_16_rcmalli"],
                     help="Backend for calculating embedding (features) of images")
