@@ -3,6 +3,9 @@ import torch.nn as nn
 
 
 class VGGFace_serengil(nn.Module):
+    """
+    Input to the model should be an image of size 224x224 and 3 channels
+    """
     def __init__(self):
         super(VGGFace_serengil, self).__init__()
 
@@ -141,6 +144,9 @@ class VGGFace_serengil(nn.Module):
 
 
 class VGGFace16_rcmalli(nn.Module):
+    """
+    Input to the model should be an image of size 224x224 and 3 channels
+    """
     def __init__(self):
         super(VGGFace16_rcmalli, self).__init__()
 

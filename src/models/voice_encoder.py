@@ -2,6 +2,9 @@ import torch.nn as nn
 
 
 class VoiceEncoder(nn.Module):
+    """
+    Input to the model should be an spectrogram calculated from an audio file 6 seconds
+    """
     def __init__(self):
         super(VoiceEncoder, self).__init__()
 
