@@ -1,11 +1,10 @@
 import os
 from argparse import ArgumentParser
-from PIL import ImageOps
-from PIL import Image
 from tqdm import tqdm
 import numpy as np
 import os
 import face_recognition
+import torch
 
 
 ACCEPTED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png']
@@ -29,6 +28,16 @@ def save_face_landmarks(args, root, file_name, face_landmarks):
     np.save(new_file_path, face_landmarks)
 
 
+def calculate_landmarks(image):
+    landmarks = face_recognition.face_landmarks(image)
+    landmarks_tensor = torch.empty(0)
+    if not landmarks:
+        return None
+    for key in landmarks[0].keys():
+        landmarks_tensor = torch.cat((landmarks_tensor, torch.tensor(landmarks[0][key])))
+    return landmarks_tensor
+
+
 def main():
     args = parser.parse_args()
 
@@ -39,8 +48,9 @@ def main():
                 continue
             file_path = os.path.join(root, file_name)
             image = face_recognition.load_image_file(file_path)
-            face_landmarks = face_recognition.face_landmarks(image)
-            save_face_landmarks(args, root, file_name, face_landmarks)
+            face_landmarks = calculate_landmarks(image)
+            if face_landmarks is not None:
+                save_face_landmarks(args, root, file_name, face_landmarks)
 
 
 if __name__ == "__main__":
