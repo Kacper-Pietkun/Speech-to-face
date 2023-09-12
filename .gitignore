@@ -11,3 +11,6 @@ pytorch_weights/
 
 # Debugging
 launch.json
+
+# Private files
+private/
