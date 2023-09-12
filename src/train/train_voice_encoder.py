@@ -40,7 +40,7 @@ parser.add_argument("--face-encoder", type=str, default="vgg_face_serengil", cho
 parser.add_argument("--face-encoder-weights-path", required=True, type=str,
                     help="Absolute path to a file where model weights for face encoder backend are stored")
 
-parser.add_argument("--save-model-path", type=str, default = "./best_voce_encoder.pt",
+parser.add_argument("--save-model-path", type=str, default = "./best_voice_encoder.pt",
                     help="Path to the file where best model's state dict will be saved")
 
 
