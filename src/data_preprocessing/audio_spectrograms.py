@@ -53,8 +53,6 @@ def compute_spectrograms(args, waveform):
 
 
 def power_law_compression(args, spectrogram):
-    import pdb
-    pdb.set_trace()
     real = np.real(spectrogram)
     imag = np.imag(spectrogram)
     compressed_real = np.sign(real) * np.abs(real) ** args.power
