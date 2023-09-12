@@ -35,6 +35,7 @@ def calculate_landmarks(image):
         return None
     for key in landmarks[0].keys():
         landmarks_tensor = torch.cat((landmarks_tensor, torch.tensor(landmarks[0][key])))
+    landmarks_tensor = landmarks_tensor.ravel()
     return landmarks_tensor
 
 
