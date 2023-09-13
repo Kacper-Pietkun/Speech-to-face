@@ -15,7 +15,7 @@ from models.face_encoder import VGGFace16_rcmalli, VGGFace_serengil
 import numpy as np
 import os
 
-ACCEPTED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png']
+ACCEPTED_IMAGE_EXTENSIONS = ['.jpg']
 
 parser = ArgumentParser(description="Getting features out of images of faces")
 
@@ -63,7 +63,7 @@ def save_embedding(args, root, file_name, embedding):
     save_dir = os.path.join(args.save_dir, additional_dirs)
     os.makedirs(save_dir,  exist_ok=True)
     name, _ = os.path.splitext(file_name)
-    name += ".npy"
+    name += "_embedding.npy"
     new_file_path = os.path.join(save_dir, name)
     np.save(new_file_path, embedding)
 
