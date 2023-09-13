@@ -10,10 +10,10 @@ class S2fDataset(Dataset):
         self.target_transform = target_transform
         self.emebddings_paths = []
         self.spectrograms_paths = []
-        self.process_dataset()
+        self.find_paths()
         self.individuals_number = len(self.emebddings_paths)
 
-    def process_dataset(self):
+    def find_paths(self):
         for person_dir in os.listdir(self.root_folder):
             spectrogram_path = os.path.join(self.root_folder, person_dir, "audios")
             self.spectrograms_paths.append(self.get_list_of_data_paths(spectrogram_path))
