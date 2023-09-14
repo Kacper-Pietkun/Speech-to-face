@@ -64,5 +64,4 @@ class FaceDecoderDataset(Dataset):
         image = self.transform(image)
         embedding = np.load(embedding_path)
         landmarks = np.load(landmarks_path)
-        # TODO: Just for checking, plot here if landmarks are properly aligned to the face
         return image, embedding, landmarks
