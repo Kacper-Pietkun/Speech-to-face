@@ -10,7 +10,7 @@ class FaceDecoderDataset(Dataset):
     def __init__(self, root_folder, transform=None, target_transform=None):
         self.root_folder = root_folder
         if transform is None:
-            transform = transforms.Compose([
+            self.transform = transforms.Compose([
                 transforms.Resize((224, 224)),
                 transforms.ToTensor()
             ])

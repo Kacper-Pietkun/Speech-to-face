@@ -6,13 +6,14 @@ class FaceDecoder(nn.Module):
     Input to the model should be face embedding vector of dimension equal to 4096
     """
     def __init__(self):
+        super(FaceDecoder, self).__init__()
         self.pre_layers = self.define_pre_layers()
         self.landmark_layers = self.define_landmark_layers()
         self.texture_layers = self.define_texture_layers()
     
 
     def define_pre_layers(self):
-        layers = []
+        layers = nn.ModuleList()
         pre_layer1 = nn.Sequential(
             nn.Linear(in_features=4096, out_features=3072),
             nn.BatchNorm1d(num_features=3072),
@@ -31,7 +32,7 @@ class FaceDecoder(nn.Module):
 
 
     def define_landmark_layers(self):
-        layers = []
+        layers = nn.ModuleList()
         landmark_layer1 = nn.Sequential(
             nn.Linear(in_features=2048, out_features=1024),
             nn.BatchNorm1d(num_features=1024),
@@ -62,7 +63,7 @@ class FaceDecoder(nn.Module):
 
 
     def define_texture_layers(self):
-        layers = []
+        layers = nn.ModuleList()
         texture_layer1 = nn.Sequential(
             nn.Linear(in_features=2048, out_features=256 * 14 * 14),
             nn.ReLU()
