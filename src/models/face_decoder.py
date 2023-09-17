@@ -116,3 +116,8 @@ class FaceDecoder(nn.Module):
             texture = texture_layer(texture)
 
         return landmarks, texture
+    
+    def get_predifined_layer_activation(self, x):
+        for pre_layer in self.pre_layers:
+            x = pre_layer(x)
+        return x
