@@ -13,6 +13,7 @@ from argparse import ArgumentParser
 from datasets.face_decoder_dataset import FaceDecoderDataset
 from models.face_encoder import VGGFace16_rcmalli, VGGFace_serengil
 from models.face_decoder import FaceDecoder
+from model_saver import ModelSaver
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -43,6 +44,9 @@ parser.add_argument("--save-folder-path", type=str, required=True,
 
 parser.add_argument("--save-images", type=bool, default=False,
                     help="If true, then save two first images at the beginning of each epoch - original and predicted")
+
+parser.add_argument("--continue-training-path", type=str,
+                    help="path to the file of the model that will be used to continue training. If not passed then new model will be trained")
 
 
 class FaceDecoderLoss(nn.Module):
@@ -123,10 +127,9 @@ def save_images(args, images_true, images_predicted, landmarks_true, landmarks_p
             plt.savefig(f"{directory}/{epoch}_{i}.jpg")
 
 
-def run(args, face_decoder, face_encoder, optimizer, loss_fn, dataloader, device):
-    history = []
+def run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, dataloader, device, start_epoch=0, history=[]):
     face_encoder.eval()
-    for epoch in range(args.num_epochs):
+    for epoch in range(start_epoch, args.num_epochs + start_epoch):
         train_sum_loss, train_landmarks_loss, train_textures_loss, train_embeddings_loss = 0, 0, 0, 0
         face_decoder.train()
         saved_images = False
@@ -150,14 +153,17 @@ def run(args, face_decoder, face_encoder, optimizer, loss_fn, dataloader, device
                 saved_images = True
                 save_images(args, images_true, images_predicted, landmarks_true, landmarks_predicted, epoch)
     
+        train_sum_loss /= len(dataloader.sampler)
         history.append({"epoch": epoch,
-                        "train_sum_loss": train_sum_loss / len(dataloader.sampler),
+                        "train_sum_loss": train_sum_loss,
                         "train_landmarks_loss": train_landmarks_loss / len(dataloader.sampler),
                         "train_textures_loss": train_textures_loss / len(dataloader.sampler),
                         "train_embeddings_loss": train_embeddings_loss / len(dataloader.sampler)})
         history_df = pd.DataFrame(history)
         history_df.to_csv(f"{args.save_folder_path}/history.csv", index=False)
-        print('Epoch: {} Train Loss: {:.4f} '.format(epoch, train_sum_loss / len(dataloader.sampler)))
+        model_saver.save(train_sum_loss, epoch, face_decoder.state_dict(), 
+                                   optimizer.state_dict(), history, epoch%10==0)
+        print('Epoch: {} Train Loss: {:.4f} '.format(epoch, train_sum_loss))
 
 
 def main():
@@ -173,8 +179,24 @@ def main():
 
     optimizer = optim.Adam(face_decoder.parameters(), lr=args.learning_rate)
     loss_fn = FaceDecoderLoss()
-
-    run(args, face_decoder, face_encoder, optimizer, loss_fn, dataloader, device)
+    import pdb
+    pdb.set_trace()
+    if args.continue_training_path is None:
+        # Train new model
+        model_saver = ModelSaver(f"{args.save_folder_path}/latest_model.pt",
+                            f"{args.save_folder_path}/best_model.pt")
+        run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, dataloader, device)
+    else:
+        # Continue training existing model
+        checkpoint = torch.load(args.continue_training_path)
+        epoch = checkpoint["epoch"] + 1
+        model_saver = ModelSaver(f"{args.save_folder_path}/latest_model.pt",
+                            f"{args.save_folder_path}/best_model.pt",
+                            checkpoint["best_loss"])
+        face_decoder.load_state_dict(checkpoint["model_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        history = checkpoint["history"]
+        run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, dataloader, device, epoch, history)
 
 
 if __name__ == "__main__":
