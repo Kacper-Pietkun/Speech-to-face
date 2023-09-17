@@ -14,6 +14,8 @@ from datasets.face_decoder_dataset import FaceDecoderDataset
 from models.face_encoder import VGGFace16_rcmalli, VGGFace_serengil
 from models.face_decoder import FaceDecoder
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+
 
 parser = ArgumentParser(description="Face Decoder Training")
 
@@ -37,6 +39,12 @@ parser.add_argument("--face-encoder-weights-path", required=True, type=str,
 
 parser.add_argument("--save-model-path", type=str, default = "./best_face_decoder.pt",
                     help="Path to the file where best model's state dict will be saved")
+
+parser.add_argument("--save-images", type=bool, default=False,
+                    help="If true, then save two first images at the beginning of each epoch - original and predicted")
+
+parser.add_argument("--save-images-path", type=str, default=".",
+                    help="Path to the folder, where images will be saved (only if --save-images is set to true)")
 
 
 class FaceDecoderLoss(nn.Module):
@@ -84,19 +92,42 @@ def get_face_encoder(choice, weights_path):
     return model
 
 
+def save_images(args, images_true, images_predicted, landmarks_true, landmarks_predicted, epoch, count=2):
+    if args.save_images:
+        for i in range(count):
+            fix, axes = plt.subplots(1, 2, figsize=(12, 8))
+            xd = (images_true[i].cpu() * 255).to(torch.uint8)
+            axes[0].imshow(xd.permute(1, 2, 0))
+            axes[0].set_title("Original image")
+            axes[0].axis("off")
+            xd = landmarks_true[i].cpu().view(72, 2)
+            x, y =zip(*xd.squeeze(0))
+            axes[0].scatter(x, y, c='red', marker='o', s=2)
+
+            xd = (images_predicted[i].cpu() * 255).to(torch.uint8)
+            axes[1].imshow(xd.permute(1, 2, 0))
+            axes[1].set_title("Predicted image")
+            axes[1].axis("off")
+            xd = landmarks_predicted[i].cpu().detach().view(72, 2)
+            x, y =zip(*xd.squeeze(0))
+            axes[1].scatter(x, y, c='red', marker='o', s=2)
+            plt.tight_layout()
+            plt.savefig(f'{args.save_images_path}/{epoch}_{i}.jpg')
+
+
 def run(args, face_decoder, face_encoder, optimizer, loss_fn, dataloader, device):
 
     face_encoder.eval()
     for epoch in range(args.num_epochs):
         train_loss = 0
         face_decoder.train()
+        saved_images = False
         for (images_true, embeddings_true, landmarks_true) in tqdm(dataloader):
             images_true = images_true.to(device)
             embeddings_true = embeddings_true.to(device)
             landmarks_true = landmarks_true.to(device)
 
             optimizer.zero_grad()
-
             landmarks_predicted, images_predicted = face_decoder(embeddings_true)
             loss = loss_fn(landmarks_true, landmarks_predicted,
                             images_true, images_predicted)
@@ -104,6 +135,9 @@ def run(args, face_decoder, face_encoder, optimizer, loss_fn, dataloader, device
             optimizer.step()
 
             train_loss += loss.item() * images_true.size(0)
+            if saved_images is False:
+                saved_images = True
+                save_images(args, images_true, images_predicted, landmarks_true, landmarks_predicted, epoch)
     
         train_loss /= len(dataloader.sampler)
         print('Epoch: {} Train Loss: {:.4f} '.format(epoch, train_loss))
