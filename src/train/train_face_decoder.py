@@ -57,16 +57,22 @@ class FaceDecoderLoss(nn.Module):
     def forward(self, landmarks_true, landmarks_predicted,
                 textures_true, textures_predicted,
                 embeddings_true=None, embeddings_predicted=None):
+        sum_loss, loss_landmarks, loss_textures, loss_embeddings  = 0, 0, 0, 0
+
         # MSE for landmarks
         if landmarks_true is not None and landmarks_predicted is not None:
-            loss = self.mse_loss(landmarks_true, landmarks_predicted)
+            loss_landmarks = self.mse_loss(landmarks_true, landmarks_predicted)
+            sum_loss += loss_landmarks
         # MAE for textures
         if textures_true is not None and textures_predicted is not None:
-            loss += self.mae_loss(textures_true, textures_predicted)
+            loss_textures = self.mae_loss(textures_true, textures_predicted)
+            sum_loss += loss_textures
         # Cosine Similarity loss for embeddings
         if embeddings_true is not None and embeddings_predicted is not None:
-            loss += self.cos_loss(embeddings_true, embeddings_predicted)
-        return loss
+            loss_embeddings = self.cos_loss(embeddings_true, embeddings_predicted)
+            sum_loss += loss_embeddings
+
+        return sum_loss, loss_landmarks, loss_textures, loss_embeddings
 
 
 def get_device(choice):
@@ -116,10 +122,13 @@ def save_images(args, images_true, images_predicted, landmarks_true, landmarks_p
 
 
 def run(args, face_decoder, face_encoder, optimizer, loss_fn, dataloader, device):
-
+    history = []
     face_encoder.eval()
     for epoch in range(args.num_epochs):
-        train_loss = 0
+        train_sum_loss = 0
+        train_landmarks_loss = 0
+        train_textures_loss = 0
+        train_embeddings_loss = 0
         face_decoder.train()
         saved_images = False
         for (images_true, embeddings_true, landmarks_true) in tqdm(dataloader):
@@ -129,18 +138,29 @@ def run(args, face_decoder, face_encoder, optimizer, loss_fn, dataloader, device
 
             optimizer.zero_grad()
             landmarks_predicted, images_predicted = face_decoder(embeddings_true)
-            loss = loss_fn(landmarks_true, landmarks_predicted,
+            sum_loss, landmarks_loss, textures_loss, embeddings_loss = loss_fn(landmarks_true, landmarks_predicted,
                             images_true, images_predicted)
-            loss.backward()
+            sum_loss.backward()
             optimizer.step()
 
-            train_loss += loss.item() * images_true.size(0)
+            train_sum_loss += sum_loss.item() * images_true.size(0)
+            train_landmarks_loss += landmarks_loss.item() * images_true.size(0)
+            train_textures_loss += textures_loss.item() * images_true.size(0)
+            train_embeddings_loss += embeddings_loss.item() * images_true.size(0)
             if saved_images is False:
                 saved_images = True
                 save_images(args, images_true, images_predicted, landmarks_true, landmarks_predicted, epoch)
     
-        train_loss /= len(dataloader.sampler)
-        print('Epoch: {} Train Loss: {:.4f} '.format(epoch, train_loss))
+        train_sum_loss /= len(dataloader.sampler)
+        train_landmarks_loss /= len(dataloader.sampler)
+        train_textures_loss /= len(dataloader.sampler)
+        train_embeddings_loss /= len(dataloader.sampler)
+        history.append({"epoch": epoch,
+                        "train_sum_loss": train_sum_loss,
+                        "train_landmarks_loss": train_landmarks_loss,
+                        "train_textures_loss": train_textures_loss,
+                        "train_embeddings_loss": train_embeddings_loss})
+        print('Epoch: {} Train Loss: {:.4f} '.format(epoch, train_sum_loss))
 
 
 def main():
