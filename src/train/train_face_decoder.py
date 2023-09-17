@@ -15,6 +15,7 @@ from models.face_encoder import VGGFace16_rcmalli, VGGFace_serengil
 from models.face_decoder import FaceDecoder
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import pandas as pd
 
 
 parser = ArgumentParser(description="Face Decoder Training")
@@ -37,14 +38,11 @@ parser.add_argument("--face-encoder", type=str, default="vgg_face_serengil", cho
 parser.add_argument("--face-encoder-weights-path", required=True, type=str,
                     help="Absolute path to a file where model weights for face encoder backend are stored")
 
-parser.add_argument("--save-model-path", type=str, default = "./best_face_decoder.pt",
-                    help="Path to the file where best model's state dict will be saved")
+parser.add_argument("--save-folder-path", type=str, required=True,
+                    help="Folder were all the result files will be saved")
 
 parser.add_argument("--save-images", type=bool, default=False,
                     help="If true, then save two first images at the beginning of each epoch - original and predicted")
-
-parser.add_argument("--save-images-path", type=str, default=".",
-                    help="Path to the folder, where images will be saved (only if --save-images is set to true)")
 
 
 class FaceDecoderLoss(nn.Module):
@@ -57,7 +55,8 @@ class FaceDecoderLoss(nn.Module):
     def forward(self, landmarks_true, landmarks_predicted,
                 textures_true, textures_predicted,
                 embeddings_true=None, embeddings_predicted=None):
-        sum_loss, loss_landmarks, loss_textures, loss_embeddings  = 0, 0, 0, 0
+        sum_loss = 0
+        loss_landmarks, loss_textures, loss_embeddings = torch.zeros(1), torch.zeros(1), torch.zeros(1)
 
         # MSE for landmarks
         if landmarks_true is not None and landmarks_predicted is not None:
@@ -118,17 +117,17 @@ def save_images(args, images_true, images_predicted, landmarks_true, landmarks_p
             x, y =zip(*xd.squeeze(0))
             axes[1].scatter(x, y, c='red', marker='o', s=2)
             plt.tight_layout()
-            plt.savefig(f'{args.save_images_path}/{epoch}_{i}.jpg')
+            directory = f"{args.save_folder_path}/images"
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            plt.savefig(f"{directory}/{epoch}_{i}.jpg")
 
 
 def run(args, face_decoder, face_encoder, optimizer, loss_fn, dataloader, device):
     history = []
     face_encoder.eval()
     for epoch in range(args.num_epochs):
-        train_sum_loss = 0
-        train_landmarks_loss = 0
-        train_textures_loss = 0
-        train_embeddings_loss = 0
+        train_sum_loss, train_landmarks_loss, train_textures_loss, train_embeddings_loss = 0, 0, 0, 0
         face_decoder.train()
         saved_images = False
         for (images_true, embeddings_true, landmarks_true) in tqdm(dataloader):
@@ -139,7 +138,7 @@ def run(args, face_decoder, face_encoder, optimizer, loss_fn, dataloader, device
             optimizer.zero_grad()
             landmarks_predicted, images_predicted = face_decoder(embeddings_true)
             sum_loss, landmarks_loss, textures_loss, embeddings_loss = loss_fn(landmarks_true, landmarks_predicted,
-                            images_true, images_predicted)
+                                                                                images_true, images_predicted)
             sum_loss.backward()
             optimizer.step()
 
@@ -151,16 +150,14 @@ def run(args, face_decoder, face_encoder, optimizer, loss_fn, dataloader, device
                 saved_images = True
                 save_images(args, images_true, images_predicted, landmarks_true, landmarks_predicted, epoch)
     
-        train_sum_loss /= len(dataloader.sampler)
-        train_landmarks_loss /= len(dataloader.sampler)
-        train_textures_loss /= len(dataloader.sampler)
-        train_embeddings_loss /= len(dataloader.sampler)
         history.append({"epoch": epoch,
-                        "train_sum_loss": train_sum_loss,
-                        "train_landmarks_loss": train_landmarks_loss,
-                        "train_textures_loss": train_textures_loss,
-                        "train_embeddings_loss": train_embeddings_loss})
-        print('Epoch: {} Train Loss: {:.4f} '.format(epoch, train_sum_loss))
+                        "train_sum_loss": train_sum_loss / len(dataloader.sampler),
+                        "train_landmarks_loss": train_landmarks_loss / len(dataloader.sampler),
+                        "train_textures_loss": train_textures_loss / len(dataloader.sampler),
+                        "train_embeddings_loss": train_embeddings_loss / len(dataloader.sampler)})
+        history_df = pd.DataFrame(history)
+        history_df.to_csv(f"{args.save_folder_path}/history.csv", index=False)
+        print('Epoch: {} Train Loss: {:.4f} '.format(epoch, train_sum_loss / len(dataloader.sampler)))
 
 
 def main():
