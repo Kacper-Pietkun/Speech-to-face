@@ -16,6 +16,7 @@ from datasets.s2f_dataset import S2fDataset
 from models.face_encoder import VGGFace16_rcmalli, VGGFace_serengil
 from models.face_decoder import FaceDecoder
 from models.voice_encoder import VoiceEncoder
+from model_saver import ModelSaver
 from tqdm import tqdm
 import pandas as pd
 
@@ -113,9 +114,8 @@ def get_face_encoder(choice, weights_path):
     return model
 
 
-def run(args, voice_encoder, optimizer, loss_fn, dataloader, device):
-    history = []
-    for epoch in range(args.num_epochs):
+def run(args, voice_encoder, optimizer, loss_fn, model_saver, dataloader, device, start_epoch=0, history=[]):
+    for epoch in range(start_epoch, args.num_epochs + start_epoch):
         train_sum_loss, train_base_loss, train_face_encoder_loss, train_face_decoder_loss = 0, 0, 0, 0
         voice_encoder.train()
         for (inputs, true_embeddings) in tqdm(dataloader):
@@ -142,6 +142,8 @@ def run(args, voice_encoder, optimizer, loss_fn, dataloader, device):
                         "train_face_decoder_loss": train_face_decoder_loss / len(dataloader.sampler)})
         history_df = pd.DataFrame(history)
         history_df.to_csv(f"{args.save_folder_path}/history.csv", index=False)
+        model_saver.save(train_sum_loss, epoch, voice_encoder.state_dict(), 
+                                   optimizer.state_dict(), history, epoch%10==0)
         print('Epoch: {} Train Loss: {:.4f} '.format(epoch, train_sum_loss))
 
 
@@ -162,7 +164,22 @@ def main():
     optimizer = optim.Adam(voice_encoder.parameters(), lr=args.learning_rate)
     loss_fn = S2FLoss(face_encoder.get_last_layer_activation, face_decoder.get_predifined_layer_activation)
 
-    run(args, voice_encoder, optimizer, loss_fn, dataloader, device)
+    if args.continue_training_path is None:
+        # Train new model
+        model_saver = ModelSaver(f"{args.save_folder_path}/latest_model.pt",
+                            f"{args.save_folder_path}/best_model.pt")
+        run(args, voice_encoder, optimizer, loss_fn, model_saver, dataloader, device)
+    else:
+        # Continue training existing model
+        checkpoint = torch.load(args.continue_training_path)
+        epoch = checkpoint["epoch"] + 1
+        model_saver = ModelSaver(f"{args.save_folder_path}/latest_model.pt",
+                            f"{args.save_folder_path}/best_model.pt",
+                            checkpoint["best_loss"])
+        voice_encoder.load_state_dict(checkpoint["model_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        history = checkpoint["history"]
+        run(args, voice_encoder, optimizer, loss_fn, model_saver, dataloader, device, epoch, history)
 
 
 if __name__ == "__main__":

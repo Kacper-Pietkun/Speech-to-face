@@ -179,8 +179,7 @@ def main():
 
     optimizer = optim.Adam(face_decoder.parameters(), lr=args.learning_rate)
     loss_fn = FaceDecoderLoss()
-    import pdb
-    pdb.set_trace()
+    
     if args.continue_training_path is None:
         # Train new model
         model_saver = ModelSaver(f"{args.save_folder_path}/latest_model.pt",
