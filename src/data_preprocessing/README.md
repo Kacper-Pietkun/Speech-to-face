@@ -6,7 +6,8 @@ You need to specify `--data-dir` and `--save-dir` arguments which tell where the
 
 ## Usage
 ```shell
-python audio_spectrograms.py --data-dir <path_to_the_directory_where_data_is_stored> --save-dir <path_to_the_directory_where_spectrograms_will_be_saved>
+python audio_spectrograms.py --data-dir <path_to_the_directory_where_data_is_stored> \
+                             --save-dir <path_to_the_directory_where_spectrograms_will_be_saved>
 ```
 
 # Images preprocessing - face embeddings
@@ -21,7 +22,10 @@ You can choose them with `--backend` parameter. You also have to provide a path 
 
 ## Usage
 ```shell
-python image_face_embeddings.py --data-dir <path_to_the_directory_where_data_is_stored> --save-dir <path_to_the_directory_where_embeddings_will_be_saved> --backend-weights <path_to_the_file_where_chosen_backend_weights_are_saved> --backend <name_of_the_chosen_backend>
+python image_face_embeddings.py --data-dir <path_to_the_directory_where_data_is_stored> \
+                                --save-dir <path_to_the_directory_where_embeddings_will_be_saved> \
+                                --backend-weights <path_to_the_file_where_chosen_backend_weights_are_saved> \
+                                --backend <name_of_the_chosen_backend>
 ```
 
 
@@ -31,5 +35,18 @@ The `image_face_landmarks.py` script can be used to calculate face landmarks for
 
 ## Usage
 ```shell
-python image_face_landmarks.py --data-dir <path_to_the_directory_where_data_is_stored> --save-dir <path_to_the_directory_where_embeddings_will_be_saved>
+python image_face_landmarks.py --data-dir <path_to_the_directory_where_data_is_stored> \
+                               --save-dir <path_to_the_directory_where_landmarks_will_be_saved>
+```
+
+
+# Images preprocessing - resizing image
+
+The `resize_images.py` script can be used to resize images to a size required by FaceDecoder model (224x224). Resizing images is optional, because every script checks whether images have appropriate sizes and resize them if necessary (scripts like FaceDecoder training, calculating image embeddings and image landmarks). Script is adjusted to traverse nested directories, so you don't have to put all of the image files in the same directory. The script will recreate the nested structure of the directories in `--save-dir` directory. Resized images will have the same name and extension as the original images.
+
+## Usage
+```shell
+# --data-dir can be equal to --save-dir, in that case original images will be overwritten
+python resize_images.py --data-dir <path_to_the_directory_where_data_is_stored> \
+                        --save-dir <path_to_the_directory_where_resized_images_will_be_saved>
 ```

@@ -5,6 +5,9 @@ __pycache__/
 # Dataset folder
 data/
 
+# Results folder
+results/
+
 # Weights folder
 tensorflow_weights/
 pytorch_weights/
