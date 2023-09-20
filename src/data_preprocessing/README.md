@@ -50,3 +50,12 @@ The `resize_images.py` script can be used to resize images to a size required by
 python resize_images.py --data-dir <path_to_the_directory_where_data_is_stored> \
                         --save-dir <path_to_the_directory_where_resized_images_will_be_saved>
 ```
+
+
+# Images preprocessing - normalizing directory names
+Before splitting dataset to train/val/test datasets it is required to normalize directory names (names of the peaople) so that they contain only ASCII letters. It is required because deepface package, which we use for face analysis, cannot process non ASCII letters directories. (We use deepface to analyze images in order to split dataset into train/val/test sets in stratified way (same ration of age_group, gender, race))
+
+## Usage
+```shell
+python normalize_directory_names.py --data-dir <path_to_the_root_folder_of_the_dataset>
+```
