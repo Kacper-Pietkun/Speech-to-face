@@ -21,10 +21,14 @@ import pandas as pd
 
 parser = ArgumentParser(description="Face Decoder Training")
 
-parser.add_argument("--dataset-path", type=str, required=True,
-                    help="Absolute path to the dataset with face embeddings, face landmarks and face images")
+parser.add_argument("--train-dataset-path", type=str, required=True,
+                    help="Absolute path to the dataset train split with face embeddings, face landmarks and face images")
 
-parser.add_argument("--batch-size", type=int, default=2)
+parser.add_argument("--val-dataset-path", type=str, required=True,
+                    help="Absolute path to the dataset validation split with face embeddings, face landmarks and face images")
+
+parser.add_argument("--batch-size", type=int, default=2,
+                    help="must be bigger than 1, because of the BatchNorm operator")
 
 parser.add_argument("--learning-rate", type=float, default=1e-3)
 
@@ -43,7 +47,8 @@ parser.add_argument("--save-folder-path", type=str, required=True,
                     help="Folder were all the result files will be saved")
 
 parser.add_argument("--save-images", type=bool, default=False,
-                    help="If true, then save two first images at the beginning of each epoch - original and predicted")
+                    help="If true, then save first images at the beginning of each epoch - original and predicted \
+                          (one image for training set and one image for validation set)")
 
 parser.add_argument("--continue-training-path", type=str,
                     help="path to the file of the model that will be used to continue training. If not passed then new model will be trained")
@@ -104,47 +109,43 @@ def get_face_encoder(choice, weights_path):
     return model
 
 
-def save_images(args, images_true, images_predicted, landmarks_true, landmarks_predicted, epoch, count=2):
+def save_images(args, images_true, images_predicted, landmarks_true, landmarks_predicted, epoch, dataset_type):
     if args.save_images:
-        for i in range(count):
-            fix, axes = plt.subplots(1, 2, figsize=(12, 8))
-            xd = (images_true[i].cpu() * 255).to(torch.uint8)
-            axes[0].imshow(xd.permute(1, 2, 0))
-            axes[0].set_title("Original image")
-            axes[0].axis("off")
-            xd = landmarks_true[i].cpu().view(72, 2)
-            x, y =zip(*xd.squeeze(0))
-            axes[0].scatter(x, y, c='red', marker='o', s=2)
+        _, axes = plt.subplots(1, 2, figsize=(12, 8))
+        temp_image = (images_true[0].cpu() * 255).to(torch.uint8)
+        axes[0].imshow(temp_image.permute(1, 2, 0))
+        axes[0].set_title("Original image")
+        axes[0].axis("off")
+        temp_image = landmarks_true[0].cpu().view(72, 2)
+        x, y =zip(*temp_image.squeeze(0))
+        axes[0].scatter(x, y, c='red', marker='o', s=2)
 
-            xd = (images_predicted[i].cpu() * 255).to(torch.uint8)
-            axes[1].imshow(xd.permute(1, 2, 0))
-            axes[1].set_title("Predicted image")
-            axes[1].axis("off")
-            xd = landmarks_predicted[i].cpu().detach().view(72, 2)
-            x, y =zip(*xd.squeeze(0))
-            axes[1].scatter(x, y, c='red', marker='o', s=2)
-            plt.tight_layout()
-            directory = f"{args.save_folder_path}/images"
-            if not os.path.exists(directory):
-                os.makedirs(directory)
-            plt.savefig(f"{directory}/{epoch}_{i}.jpg")
+        temp_landmark = (images_predicted[0].cpu() * 255).to(torch.uint8)
+        axes[1].imshow(temp_landmark.permute(1, 2, 0))
+        axes[1].set_title("Predicted image")
+        axes[1].axis("off")
+        temp_landmark = landmarks_predicted[0].cpu().detach().view(72, 2)
+        x, y =zip(*temp_landmark.squeeze(0))
+        axes[1].scatter(x, y, c='red', marker='o', s=2)
+        plt.tight_layout()
+        directory = f"{args.save_folder_path}/images/{dataset_type}"
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        plt.savefig(f"{directory}/{epoch}.jpg")
 
 
-def run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, dataloader, device, start_epoch=0, history=[]):
+def run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, device, start_epoch=0, history=[]):
     face_encoder.eval()
     for epoch in range(start_epoch, args.num_epochs + start_epoch):
-        train_sum_loss, train_landmarks_loss, train_textures_loss, train_embeddings_loss = 0, 0, 0, 0
         face_decoder.train()
+        train_sum_loss, train_landmarks_loss, train_textures_loss, train_embeddings_loss = 0, 0, 0, 0
         saved_images = False
-        for (images_true, embeddings_true, landmarks_true) in tqdm(dataloader):
-            images_true = images_true.to(device)
-            embeddings_true = embeddings_true.to(device)
-            landmarks_true = landmarks_true.to(device)
+        for (images_true, embeddings_true, landmarks_true) in tqdm(train_dataloader):
+            images_true, embeddings_true, landmarks_true = images_true.to(device), embeddings_true.to(device), landmarks_true.to(device)
 
             optimizer.zero_grad()
             landmarks_predicted, images_predicted = face_decoder(embeddings_true)
-            sum_loss, landmarks_loss, textures_loss, embeddings_loss = loss_fn(landmarks_true, landmarks_predicted,
-                                                                                images_true, images_predicted)
+            sum_loss, landmarks_loss, textures_loss, embeddings_loss = loss_fn(landmarks_true, landmarks_predicted, images_true, images_predicted)
             sum_loss.backward()
             optimizer.step()
 
@@ -154,19 +155,44 @@ def run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, datal
             train_embeddings_loss += embeddings_loss.item() * images_true.size(0)
             if saved_images is False:
                 saved_images = True
-                save_images(args, images_true, images_predicted, landmarks_true, landmarks_predicted, epoch)
+                save_images(args, images_true, images_predicted, landmarks_true, landmarks_predicted, epoch, "train")
     
-        train_sum_loss /= len(dataloader.sampler)
-        history.append({"epoch": epoch,
-                        "train_sum_loss": train_sum_loss,
-                        "train_landmarks_loss": train_landmarks_loss / len(dataloader.sampler),
-                        "train_textures_loss": train_textures_loss / len(dataloader.sampler),
-                        "train_embeddings_loss": train_embeddings_loss / len(dataloader.sampler)})
+        face_decoder.eval()
+        val_sum_loss, val_landmarks_loss, val_textures_loss, val_embeddings_loss = 0, 0, 0, 0
+        saved_images = False
+        with torch.no_grad():
+            for (images_true, embeddings_true, landmarks_true) in tqdm(val_dataloader):
+                images_true, embeddings_true, landmarks_true = images_true.to(device), embeddings_true.to(device), landmarks_true.to(device)
+                landmarks_predicted, images_predicted = face_decoder(embeddings_true)
+                sum_loss, landmarks_loss, textures_loss, embeddings_loss = loss_fn(landmarks_true, landmarks_predicted, images_true, images_predicted)
+
+                val_sum_loss += sum_loss.item() * images_true.size(0)
+                val_landmarks_loss += landmarks_loss.item() * images_true.size(0)
+                val_textures_loss += textures_loss.item() * images_true.size(0)
+                val_embeddings_loss += embeddings_loss.item() * images_true.size(0)
+
+                if saved_images is False:
+                    saved_images = True
+                    save_images(args, images_true, images_predicted, landmarks_true, landmarks_predicted, epoch, "val")
+
+        train_sum_loss /= len(train_dataloader.sampler)
+        val_sum_loss /= len(val_dataloader.sampler)
+        history.append({
+            "epoch": epoch,
+            "train_sum_loss": train_sum_loss,
+            "train_landmarks_loss": train_landmarks_loss / len(train_dataloader.sampler),
+            "train_textures_loss": train_textures_loss / len(train_dataloader.sampler),
+            "train_embeddings_loss": train_embeddings_loss / len(train_dataloader.sampler),
+            "val_sum_loss": val_sum_loss,
+            "val_landmarks_loss": val_landmarks_loss / len(val_dataloader.sampler),
+            "val_textures_loss": val_textures_loss / len(val_dataloader.sampler),
+            "val_embeddings_loss": val_embeddings_loss / len(val_dataloader.sampler)
+        })
         history_df = pd.DataFrame(history)
         history_df.to_csv(f"{args.save_folder_path}/history.csv", index=False)
         model_saver.save(train_sum_loss, epoch, face_decoder.state_dict(), 
                                    optimizer.state_dict(), history, epoch%10==0)
-        print('Epoch: {} Train Loss: {:.4f} '.format(epoch, train_sum_loss))
+        print('Epoch: {} Train Loss: {:.4f} Validation Loss: {:.4f} '.format(epoch, train_sum_loss, val_sum_loss))
 
 
 def main():
@@ -174,8 +200,10 @@ def main():
 
     device = get_device(args.gpu)
 
-    train_dataset = FaceDecoderDataset(args.dataset_path)
-    dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    train_dataset = FaceDecoderDataset(args.train_dataset_path)
+    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    val_dataset = FaceDecoderDataset(args.val_dataset_path)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
 
     face_decoder = FaceDecoder().to(device)
     face_encoder = get_face_encoder(args.face_encoder, args.face_encoder_weights_path).to(device)
@@ -187,7 +215,7 @@ def main():
         # Train new model
         model_saver = ModelSaver(f"{args.save_folder_path}/latest_model.pt",
                             f"{args.save_folder_path}/best_model.pt")
-        run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, dataloader, device)
+        run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, device)
     else:
         # Continue training existing model
         checkpoint = torch.load(args.continue_training_path)
@@ -198,7 +226,7 @@ def main():
         face_decoder.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         history = checkpoint["history"]
-        run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, dataloader, device, epoch, history)
+        run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, device, epoch, history)
 
 
 if __name__ == "__main__":
