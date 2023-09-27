@@ -56,3 +56,17 @@ Names of the folders and files are arbitrary, except for two things:
 For example, when having an face image file with name `my_face.jpg`, then the embedding file must be named `my_face_embedding.npy` and the landmarks file must be named `my_face_landmarks.npy`
 
 Note that each person can have a different number of (image, embedding, landmarks) files. Additionally, for each face image file, there must be equivalent embedding and landmarks file, otherwise it won't be used during training face decoder. You can generate face embeddings and face landmarks from a face image using `image_face_embeddings.py` and  `image_face_landmarks.py` scripts in `src\data_preprocessing` folder in this repository.
+
+## Splitting FaceDecoder dataset into train/validation/test sets
+
+Use `face_decoder_split.py` script to split FaceDecoder dataset into train/validation/test sets. To ensure that splitted dataset is balanced we are using stratified split. Firstly we determine three categories for each person using deepface library - race, age_group and gender (You can determine which categories will be calculated passing `gender`, `race` and `age` arguments to the script). This step is required, because if we splitted dataset randomly, then there would be chance that validation and test sets consist only of woman images and that would skew the results. Because of this stratifying step, process of dataset splitting takes a lot of time.
+
+### Usage
+```shell
+# Example for stratified split for people's age and race
+python face_decoder_split.py --dataset-path <path_to_the_root_folder_of_the_dataset> \
+                             --save-path <path where train/validation/test folders will be created> \
+                             --train-size <size of the train set <sizes of validation and test sets are set to (1-train_size)/2)> \
+                             --age \
+                             --race
+```
