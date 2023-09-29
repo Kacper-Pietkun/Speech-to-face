@@ -17,6 +17,7 @@ from model_saver import ModelSaver
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 
 
 parser = ArgumentParser(description="Face Decoder Training")
@@ -27,12 +28,12 @@ parser.add_argument("--train-dataset-path", type=str, required=True,
 parser.add_argument("--val-dataset-path", type=str, required=True,
                     help="Absolute path to the dataset validation split with face embeddings, face landmarks and face images")
 
-parser.add_argument("--batch-size", type=int, default=2,
+parser.add_argument("--batch-size", type=int, default=64,
                     help="must be bigger than 1, because of the BatchNorm operator")
 
 parser.add_argument("--learning-rate", type=float, default=1e-3)
 
-parser.add_argument("--num-epochs", type=int, default=100)
+parser.add_argument("--num-epochs", type=int, default=1000)
 
 parser.add_argument("--gpu", type=int, default=0,
                     help="-1 for cpu training")
@@ -46,8 +47,8 @@ parser.add_argument("--face-encoder-weights-path", required=True, type=str,
 parser.add_argument("--save-folder-path", type=str, required=True,
                     help="Folder were all the result files will be saved")
 
-parser.add_argument("--save-images", type=bool, default=False,
-                    help="If true, then save first images at the beginning of each epoch - original and predicted \
+parser.add_argument("--save-images", action="store_true",
+                    help="If set, then save first images at the beginning of each epoch - original and predicted \
                           (one image for training set and one image for validation set)")
 
 parser.add_argument("--continue-training-path", type=str,
@@ -139,8 +140,8 @@ def run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, train
     for epoch in range(start_epoch, args.num_epochs + start_epoch):
         face_decoder.train()
         train_sum_loss, train_landmarks_loss, train_textures_loss, train_embeddings_loss = 0, 0, 0, 0
-        saved_images = False
-        for (images_true, embeddings_true, landmarks_true) in tqdm(train_dataloader):
+        saved_image_index = np.random.randint(0, len(train_dataloader))
+        for step, (images_true, embeddings_true, landmarks_true) in enumerate(tqdm(train_dataloader)):
             images_true, embeddings_true, landmarks_true = images_true.to(device), embeddings_true.to(device), landmarks_true.to(device)
 
             optimizer.zero_grad()
@@ -153,15 +154,14 @@ def run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, train
             train_landmarks_loss += landmarks_loss.item() * images_true.size(0)
             train_textures_loss += textures_loss.item() * images_true.size(0)
             train_embeddings_loss += embeddings_loss.item() * images_true.size(0)
-            if saved_images is False:
-                saved_images = True
+            if step == saved_image_index:
                 save_images(args, images_true, images_predicted, landmarks_true, landmarks_predicted, epoch, "train")
     
         face_decoder.eval()
         val_sum_loss, val_landmarks_loss, val_textures_loss, val_embeddings_loss = 0, 0, 0, 0
-        saved_images = False
+        saved_image_index = np.random.randint(0, len(val_dataloader))
         with torch.no_grad():
-            for (images_true, embeddings_true, landmarks_true) in tqdm(val_dataloader):
+            for step, (images_true, embeddings_true, landmarks_true) in enumerate(tqdm(val_dataloader)):
                 images_true, embeddings_true, landmarks_true = images_true.to(device), embeddings_true.to(device), landmarks_true.to(device)
                 landmarks_predicted, images_predicted = face_decoder(embeddings_true)
                 sum_loss, landmarks_loss, textures_loss, embeddings_loss = loss_fn(landmarks_true, landmarks_predicted, images_true, images_predicted)
@@ -171,8 +171,7 @@ def run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, train
                 val_textures_loss += textures_loss.item() * images_true.size(0)
                 val_embeddings_loss += embeddings_loss.item() * images_true.size(0)
 
-                if saved_images is False:
-                    saved_images = True
+                if step == saved_image_index:
                     save_images(args, images_true, images_predicted, landmarks_true, landmarks_predicted, epoch, "val")
 
         train_sum_loss /= len(train_dataloader.sampler)
@@ -190,7 +189,7 @@ def run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, train
         })
         history_df = pd.DataFrame(history)
         history_df.to_csv(f"{args.save_folder_path}/history.csv", index=False)
-        model_saver.save(train_sum_loss, epoch, face_decoder.state_dict(), 
+        model_saver.save(val_sum_loss, epoch, face_decoder.state_dict(), 
                                    optimizer.state_dict(), history, epoch%10==0)
         print('Epoch: {} Train Loss: {:.4f} Validation Loss: {:.4f} '.format(epoch, train_sum_loss, val_sum_loss))
 
