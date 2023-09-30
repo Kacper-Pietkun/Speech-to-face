@@ -23,8 +23,11 @@ import pandas as pd
 
 parser = ArgumentParser(description="Voice Encoder Training")
 
-parser.add_argument("--dataset-path", type=str, required=True,
-                    help="Absolute path to the dataset with face embeddings and spectrograms")
+parser.add_argument("--train-dataset-path", type=str, required=True,
+                    help="Absolute path to the dataset train split with face embeddings and spectrograms")
+
+parser.add_argument("--val-dataset-path", type=str, required=True,
+                    help="Absolute path to the dataset validation split with face embeddings and spectrograms")
 
 parser.add_argument("--batch-size", type=int, default=2)
 
@@ -39,7 +42,10 @@ parser.add_argument("--face-encoder", type=str, default="vgg_face_serengil", cho
                     help="Backend for calculating embedding (features) of images")
 
 parser.add_argument("--face-encoder-weights-path", required=True, type=str,
-                    help="Absolute path to a file where model weights for face encoder backend are stored")
+                    help="Absolute path to a file where model weights for face encoder model are stored")
+
+parser.add_argument("--face-decoder-weights-path", required=True, type=str,
+                    help="Absolute path to a file where model weights for face decoder model are stored")
 
 parser.add_argument("--save-folder-path", type=str, required=True,
                     help="Folder were all the result files will be saved")
@@ -114,16 +120,14 @@ def get_face_encoder(choice, weights_path):
     return model
 
 
-def run(args, voice_encoder, optimizer, loss_fn, model_saver, dataloader, device, start_epoch=0, history=[]):
+def run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, device, start_epoch=0, history=[]):
     for epoch in range(start_epoch, args.num_epochs + start_epoch):
-        train_sum_loss, train_base_loss, train_face_encoder_loss, train_face_decoder_loss = 0, 0, 0, 0
         voice_encoder.train()
-        for (inputs, true_embeddings) in tqdm(dataloader):
-            inputs = inputs.to(device)
-            true_embeddings = true_embeddings.to(device)
+        train_sum_loss, train_base_loss, train_face_encoder_loss, train_face_decoder_loss = 0, 0, 0, 0
+        for (inputs, true_embeddings) in tqdm(train_dataloader):
+            inputs, true_embeddings = inputs.to(device), true_embeddings.to(device)
 
             optimizer.zero_grad()
-
             voice_encoder_embeddings = voice_encoder(inputs)
             sum_loss, base_loss, face_encoder_loss, face_decoder_loss  = loss_fn(voice_encoder_embeddings, true_embeddings)
             sum_loss.backward()
@@ -134,17 +138,37 @@ def run(args, voice_encoder, optimizer, loss_fn, model_saver, dataloader, device
             train_face_encoder_loss += face_encoder_loss.item() * inputs.size(0)
             train_face_decoder_loss += face_decoder_loss.item() * inputs.size(0)
     
-        train_sum_loss /= len(dataloader.sampler)
-        history.append({"epoch": epoch,
-                        "train_sum_loss": train_sum_loss,
-                        "train_base_loss": train_base_loss / len(dataloader.sampler),
-                        "train_face_encoder_loss": train_face_encoder_loss / len(dataloader.sampler),
-                        "train_face_decoder_loss": train_face_decoder_loss / len(dataloader.sampler)})
+        voice_encoder.eval()
+        val_sum_loss, val_base_loss, val_face_encoder_loss, val_face_decoder_loss = 0, 0, 0, 0
+        with torch.no_grad():
+            for (inputs, true_embeddings) in tqdm(val_dataloader):
+                inputs, true_embeddings = inputs.to(device), true_embeddings.to(device)
+                voice_encoder_embeddings = voice_encoder(inputs)
+                sum_loss, base_loss, face_encoder_loss, face_decoder_loss  = loss_fn(voice_encoder_embeddings, true_embeddings)
+
+                val_sum_loss += sum_loss.item() * inputs.size(0)
+                val_base_loss += base_loss.item() * inputs.size(0)
+                val_face_encoder_loss += face_encoder_loss.item() * inputs.size(0)
+                val_face_decoder_loss += face_decoder_loss.item() * inputs.size(0)
+
+        train_sum_loss /= len(train_dataloader.sampler)
+        val_sum_loss /= len(val_dataloader.sampler)
+        history.append({
+            "epoch": epoch,
+            "train_sum_loss": train_sum_loss,
+            "train_base_loss": train_base_loss / len(train_dataloader.sampler),
+            "train_face_encoder_loss": train_face_encoder_loss / len(train_dataloader.sampler),
+            "train_face_decoder_loss": train_face_decoder_loss / len(train_dataloader.sampler),
+            "val_sum_loss": val_sum_loss,
+            "val_base_loss": val_base_loss / len(val_dataloader.sampler),
+            "val_face_encoder_loss": val_face_encoder_loss / len(val_dataloader.sampler),
+            "val_face_decoder_loss": val_face_decoder_loss / len(val_dataloader.sampler)
+        })
         history_df = pd.DataFrame(history)
         history_df.to_csv(f"{args.save_folder_path}/history.csv", index=False)
-        model_saver.save(train_sum_loss, epoch, voice_encoder.state_dict(), 
+        model_saver.save(val_sum_loss, epoch, voice_encoder.state_dict(), 
                                    optimizer.state_dict(), history, epoch%10==0)
-        print('Epoch: {} Train Loss: {:.4f} '.format(epoch, train_sum_loss))
+        print('Epoch: {} Train Loss: {:.4f} Validation Loss: {:.4f} '.format(epoch, train_sum_loss, val_sum_loss))
 
 
 def main():
@@ -152,11 +176,15 @@ def main():
 
     device = get_device(args.gpu)
 
-    train_dataset = S2fDataset(args.dataset_path)
-    dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    train_dataset = S2fDataset(args.train_dataset_path)
+    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    val_dataset = S2fDataset(args.val_dataset_path)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
 
     voice_encoder = VoiceEncoder().to(device)
     face_decoder = FaceDecoder().to(device)
+    face_decoder_checkpoint = torch.load(args.face_decoder_weights_path)
+    face_decoder.load_state_dict(face_decoder_checkpoint["model_state_dict"])
     face_decoder.eval()
     face_encoder = get_face_encoder(args.face_encoder, args.face_encoder_weights_path).to(device)
     face_encoder.eval()
@@ -168,7 +196,7 @@ def main():
         # Train new model
         model_saver = ModelSaver(f"{args.save_folder_path}/latest_model.pt",
                             f"{args.save_folder_path}/best_model.pt")
-        run(args, voice_encoder, optimizer, loss_fn, model_saver, dataloader, device)
+        run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, device)
     else:
         # Continue training existing model
         checkpoint = torch.load(args.continue_training_path)
@@ -179,7 +207,7 @@ def main():
         voice_encoder.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         history = checkpoint["history"]
-        run(args, voice_encoder, optimizer, loss_fn, model_saver, dataloader, device, epoch, history)
+        run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, device, epoch, history)
 
 
 if __name__ == "__main__":
