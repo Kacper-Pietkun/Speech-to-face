@@ -15,7 +15,7 @@ import torchvision.transforms as transforms
 import numpy as np
 
 
-parser = ArgumentParser("Use trained FaceDecoder to generate face image out of image's embedding")
+parser = ArgumentParser("Use trained FaceEncoder and FaceDecoder to generate face image out of original image")
 
 parser.add_argument("--image-file-path", type=str, required=True,
                     help="Path to the image")
