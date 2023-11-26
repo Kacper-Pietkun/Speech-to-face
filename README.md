@@ -55,10 +55,11 @@ To read more about the project go to the page that you are interested in:
 
 ## Used datasets
 In the project we used three different datasets:
-    1. VoxCeleb1 - for human speech audio [6]
-    2. VoxCeleb2 - for human speech audio [7]
-    3. HQ-VoxCeleb - for normalized facial images [8]
-`HQ-VoxCeleb` dataset was used to train FaceDecoder model. For 
+1. VoxCeleb1 - for human speech audio [6]
+2. VoxCeleb2 - for human speech audio [7]
+3. HQ-VoxCeleb - for normalized facial images [8]
+
+`HQ-VoxCeleb` dataset was used to train FaceDecoder model. To train VoiceEncoder model we filtered `VoxCeleb1` and `VoxCeleb2` datasets to get audio files for the identities present in `HQ-VoxCeleb` (because `HQ-VoxCeleb` does not contain normalized face images for every identity present in `VoxCeleb1` or `VoxCeleb2` datasets)
 
 
 ## Results
