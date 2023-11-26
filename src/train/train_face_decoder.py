@@ -38,10 +38,10 @@ parser.add_argument("--num-epochs", type=int, default=1000)
 parser.add_argument("--gpu", type=int, default=0,
                     help="-1 for cpu training")
 
-parser.add_argument("--face-encoder", type=str, default="vgg_face_serengil", choices=["vgg_face_serengil", "vgg_face_16_rcmalli"],
+parser.add_argument("--face-encoder", type=str, choices=["vgg_face_serengil", "vgg_face_16_rcmalli"],
                     help="Backend for calculating embedding (features) of images")
 
-parser.add_argument("--face-encoder-weights-path", required=True, type=str,
+parser.add_argument("--face-encoder-weights-path", type=str,
                     help="Absolute path to a file where model weights for face encoder backend are stored")
 
 parser.add_argument("--save-folder-path", type=str, required=True,
@@ -99,7 +99,9 @@ def get_device(choice):
 
 
 def get_face_encoder(choice, weights_path):
-    if choice == "vgg_face_serengil":
+    if choice is None:
+        return None
+    elif choice == "vgg_face_serengil":
         model = VGGFace_serengil()
     elif choice == "vgg_face_16_rcmalli":
         model = VGGFace16_rcmalli()
