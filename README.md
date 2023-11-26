@@ -16,7 +16,8 @@ We trained this model from scratch
 In this project we didn't implement and train this model ourselves, we used existing trained models from:
     - VGG-face model from [github.com/serengil/deepface](https://github.com/serengil/deepface) (in our project it is called `VGGFace_serengil`) [4]
     - VGG-face (16) model from [github.com/rcmalli/keras-vggface](https://github.com/rcmalli/keras-vggface) (in our project it is called `VGGFace16_rcmalli`) [5]
-    When using Speech-to-Face pipeline or Face-to-Face pipeline you can choose model which will be used
+
+  When using Speech-to-Face pipeline or Face-to-Face pipeline you can choose model which will be used
 
 - Face Decoder - architecture based on [Synthesizing Normalized Faces from Facial Identity Features](https://arxiv.org/abs/1701.04851) paper [3]
 We trained this model from scratch
