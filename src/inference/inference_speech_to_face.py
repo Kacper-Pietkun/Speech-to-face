@@ -6,12 +6,12 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 from argparse import ArgumentParser
-from src.models.voice_encoder import VoiceEncoder
-from src.models.face_decoder import FaceDecoder
+from models.voice_encoder import VoiceEncoder
+from models.face_decoder import FaceDecoder
 import torch
 from matplotlib import pyplot as plt
 import librosa
-import src.data_preprocessing.audio_spectrograms as audio_processing
+import data_preprocessing.audio_spectrograms as audio_processing
 
 
 parser = ArgumentParser("Use trained VoiceEncoder and FaceDecoder to generate face image out of audio file")
@@ -86,7 +86,7 @@ def main():
     _, axes = plt.subplots(1, 1, figsize=(12, 8))
     temp_image = (images_predicted[0].cpu() * 255).to(torch.uint8)
     axes.imshow(temp_image.permute(1, 2, 0))
-    axes.set_title("Original image")
+    axes.set_title("Reconstructed image")
     axes.axis("off")
     temp_image = landmarks_predicted[0].cpu().view(72, 2)
     x, y =zip(*temp_image.squeeze(0))

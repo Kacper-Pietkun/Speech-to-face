@@ -6,11 +6,11 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 from argparse import ArgumentParser
-from src.models.face_decoder import FaceDecoder
+from models.face_decoder import FaceDecoder
 import torch
 from matplotlib import pyplot as plt
-import src.data_preprocessing.image_face_embeddings as embedding_processing
-import src.data_preprocessing.image_face_landmarks as landmarks_processing
+import data_preprocessing.image_face_embeddings as embedding_processing
+import data_preprocessing.image_face_landmarks as landmarks_processing
 import torchvision.transforms as transforms
 import numpy as np
 
