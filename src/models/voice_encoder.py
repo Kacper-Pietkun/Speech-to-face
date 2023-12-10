@@ -3,7 +3,7 @@ import torch.nn as nn
 
 class VoiceEncoder(nn.Module):
     """
-    Input to the model should be an spectrogram calculated from an audio file 6 seconds
+    Input to the model should be an spectrogram calculated from an audio file 6 seconds - with shape (2, 257, 601)
     """
     def __init__(self):
         super(VoiceEncoder, self).__init__()
@@ -80,7 +80,7 @@ class VoiceEncoder(nn.Module):
 
         self.layer10 = nn.Sequential(
             nn.Flatten(),
-            nn.LazyLinear(out_features=4096),
+            nn.Linear(in_features=29184, out_features=4096),
             nn.ReLU()
         )
         self.layers.append(self.layer10)

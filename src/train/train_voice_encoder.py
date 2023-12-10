@@ -38,6 +38,9 @@ parser.add_argument("--num-epochs", type=int, default=100)
 parser.add_argument("--gpu", type=int, default=0,
                     help="-1 for cpu training")
 
+parser.add_argument("--num-workers", type=int, default=12,
+                    help="Number of workers for the train and validation dataloaders")
+
 parser.add_argument("--face-encoder", type=str, default="vgg_face_serengil", choices=["vgg_face_serengil", "vgg_face_16_rcmalli"],
                     help="Backend for calculating embedding (features) of images")
 
@@ -55,13 +58,14 @@ parser.add_argument("--continue-training-path", type=str,
 
 
 class S2FLoss(nn.Module):
-    def __init__(self, face_encoder_last_layer, face_decoder_first_layer, coe_1=0.025, coe_2=200):
+    def __init__(self, face_encoder_last_layer, face_decoder_first_layer, coe_1=30, coe_2=2, coe_3=50):
         super().__init__()
         self.face_encoder_last_layer = face_encoder_last_layer
         self.face_decoder_first_layer = face_decoder_first_layer
         self.mae_loss = nn.L1Loss()
         self.coe_1 = coe_1
         self.coe_2 = coe_2
+        self.coe_3 = coe_3
 
     def forward(self, pred, true):
         sum_loss = 0
@@ -87,6 +91,7 @@ class S2FLoss(nn.Module):
         with torch.no_grad():
             dec_v_f = self.face_decoder_first_layer(true)
             loss_face_decoder = self.mae_loss(dec_v_f, dec_v_s)
+            loss_face_decoder *= self.coe_3
             sum_loss += loss_face_decoder
 
         return sum_loss, loss_base, loss_face_encoder, loss_face_decoder
@@ -177,9 +182,9 @@ def main():
     device = get_device(args.gpu)
 
     train_dataset = S2fDataset(args.train_dataset_path)
-    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     val_dataset = S2fDataset(args.val_dataset_path)
-    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
     voice_encoder = VoiceEncoder().to(device)
     face_decoder = FaceDecoder().to(device)

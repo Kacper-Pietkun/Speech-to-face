@@ -92,8 +92,8 @@ def main():
             waveform, _ = librosa.load(file_path, duration=args.audio_length, sr=args.sampling_rate, mono=True)
             waveform = stretch_audio(args, waveform)
             spectrogram = compute_spectrograms(args, waveform)
-            spectrogram = power_law_compression(args, spectrogram)
             # visualize_spectrogram(args, spectrogram)
+            spectrogram = power_law_compression(args, spectrogram)
             save_spectrogram(args, root, file_name, spectrogram)
 
 
