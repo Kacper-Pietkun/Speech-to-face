@@ -4,6 +4,8 @@ import numpy as np
 import librosa
 import os
 from tqdm import tqdm
+import ffmpeg
+import subprocess
 
 
 ACCEPTED_AUDIO_EXTENSIONS = ['.m4a', '.wav']
@@ -35,6 +37,12 @@ parser.add_argument("--n-fft", default=512, type=int,
 parser.add_argument("--power", default=0.3, type=float,
                     help="power applied during power-law compression")
 
+def normalize_audio(file_path, root, file_base):
+    output_path = os.path.join(root, f"{file_base}_normalized.wav")
+    ffmpeg.input(file_path).output(output_path, ar=16000, acodec="pcm_s16le", ac=1, loglevel="quiet").run()
+    normalize_command = ["ffmpeg-normalize", output_path, "--normalization-type", "rms", "-t", "-23", "-o", output_path, '-f']
+    subprocess.run(normalize_command)
+    return output_path
 
 def stretch_audio(args, waveform):
     duration = librosa.get_duration(y=waveform, sr=args.sampling_rate)
@@ -51,13 +59,12 @@ def compute_spectrograms(args, waveform):
     return librosa.stft(waveform, n_fft=args.n_fft, hop_length=hop_length,
                         win_length=window_length, window="hann")
 
-
 def power_law_compression(args, spectrogram):
-    real = np.real(spectrogram)
-    imag = np.imag(spectrogram)
-    compressed_real = np.sign(real) * np.abs(real) ** args.power
-    compressed_imag = np.sign(imag) * np.abs(imag) ** args.power
-    compressed_spectrogram = np.stack((compressed_real, compressed_imag), axis=0)
+    magnitude = np.abs(spectrogram)
+    phase = np.angle(spectrogram)
+    compressed_magnitude = np.sign(magnitude) * np.abs(magnitude) ** args.power
+    compressed_phase = np.sign(phase) * np.abs(phase) ** args.power
+    compressed_spectrogram = np.stack((compressed_magnitude, compressed_phase), axis=0)
     return compressed_spectrogram
 
 
@@ -85,17 +92,19 @@ def main():
 
     for root, _, files in tqdm(os.walk(args.data_dir), desc="Outer Loop"):
         for file_name in tqdm(files, desc="Inner Loop", leave=False):
-            _, extension = os.path.splitext(file_name)
+            file_path = os.path.join(root, file_name)
+            file_base, extension = os.path.splitext(file_name)
             if extension not in ACCEPTED_AUDIO_EXTENSIONS:
                 continue
-            file_path = os.path.join(root, file_name)
-            waveform, _ = librosa.load(file_path, duration=args.audio_length, sr=args.sampling_rate, mono=True)
+
+            normalized_file_path = normalize_audio(file_path, root, file_base)
+            waveform, _ = librosa.load(normalized_file_path, duration=args.audio_length, sr=args.sampling_rate, mono=True)
             waveform = stretch_audio(args, waveform)
             spectrogram = compute_spectrograms(args, waveform)
             # visualize_spectrogram(args, spectrogram)
             spectrogram = power_law_compression(args, spectrogram)
             save_spectrogram(args, root, file_name, spectrogram)
-
+            os.remove(normalized_file_path)
 
 if __name__ == "__main__":
     main()
