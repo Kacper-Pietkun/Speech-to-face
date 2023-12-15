@@ -73,12 +73,16 @@ def main():
     voice_encoder_checkpoint = torch.load(args.voice_encoder_path)
     voice_encoder.load_state_dict(voice_encoder_checkpoint["model_state_dict"])
 
-    waveform, _ = librosa.load(args.audio_file_path, duration=args.audio_length, sr=args.sampling_rate, mono=True)
+    root = os.path.dirname(args.audio_file_path)
+    file_base, _ = os.path.splitext(os.path.basename(args.audio_file_path))
+    normalized_file_path = audio_processing.normalize_audio(args.audio_file_path, root, file_base)
+    waveform, _ = librosa.load(normalized_file_path, duration=args.audio_length, sr=args.sampling_rate, mono=True)
     waveform = audio_processing.stretch_audio(args, waveform)
     spectrogram = audio_processing.compute_spectrograms(args, waveform)
     spectrogram = audio_processing.power_law_compression(args, spectrogram)
     spectrogram = torch.tensor(spectrogram).unsqueeze(0).to(device)
-
+    os.remove(normalized_file_path)
+    
     with torch.no_grad():
         voice_encoder_embeddings = voice_encoder(spectrogram)
         landmarks_predicted, images_predicted = face_decoder(voice_encoder_embeddings)
