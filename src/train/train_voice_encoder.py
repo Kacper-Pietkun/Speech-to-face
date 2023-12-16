@@ -172,7 +172,7 @@ def run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, 
         history_df = pd.DataFrame(history)
         history_df.to_csv(f"{args.save_folder_path}/history.csv", index=False)
         model_saver.save(val_sum_loss, epoch, voice_encoder.state_dict(), 
-                                   optimizer.state_dict(), history, epoch%10==0)
+                                   optimizer.state_dict(), history, epoch%1==0)
         print('Epoch: {} Train Loss: {:.4f} Validation Loss: {:.4f} '.format(epoch, train_sum_loss, val_sum_loss))
 
 
