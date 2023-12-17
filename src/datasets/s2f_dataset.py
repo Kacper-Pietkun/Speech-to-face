@@ -16,10 +16,15 @@ class S2fDataset(Dataset):
     def find_paths(self):
         for person_dir in os.listdir(self.root_folder):
             spectrogram_path = os.path.join(self.root_folder, person_dir, "audios")
-            self.spectrograms_paths.append(self.get_list_of_data_paths(spectrogram_path))
-
+            person_spectrograms = self.get_list_of_data_paths(spectrogram_path)
             embedding_path = os.path.join(self.root_folder, person_dir, "images")
-            self.emebddings_paths.append(self.get_list_of_data_paths(embedding_path))
+            person_embeddings = self.get_list_of_data_paths(embedding_path)
+
+            if len(person_spectrograms) == 0 or len(person_embeddings) == 0:
+                continue # skip identities which does not have spectrograms or embeddings
+
+            self.spectrograms_paths.append(person_spectrograms)
+            self.emebddings_paths.append(person_embeddings)
 
     def get_list_of_data_paths(self, path):
         data_paths = []
