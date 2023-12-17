@@ -17,8 +17,10 @@ from models.face_encoder import VGGFace16_rcmalli, VGGFace_serengil
 from models.face_decoder import FaceDecoder
 from models.voice_encoder import VoiceEncoder
 from model_saver import ModelSaver
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 import pandas as pd
+import numpy as np
 
 
 parser = ArgumentParser(description="Voice Encoder Training")
@@ -31,7 +33,7 @@ parser.add_argument("--val-dataset-path", type=str, required=True,
 
 parser.add_argument("--batch-size", type=int, default=2)
 
-parser.add_argument("--learning-rate", type=float, default=1e-3)
+parser.add_argument("--learning-rate", type=float, default=0.001)
 
 parser.add_argument("--num-epochs", type=int, default=100)
 
@@ -52,6 +54,11 @@ parser.add_argument("--face-decoder-weights-path", required=True, type=str,
 
 parser.add_argument("--save-folder-path", type=str, required=True,
                     help="Folder were all the result files will be saved")
+
+parser.add_argument("--save-images", action="store_true",
+                    help="If set, then save first images at the beginning of each epoch - original and predicted \
+                            (one image for training set and one image for validation set). Saved images are the images \
+                            reconstructed from the output of the voice encoder by the face decoder")
 
 parser.add_argument("--continue-training-path", type=str,
                     help="path to the file of the model that will be used to continue training. If not passed then new model will be trained")
@@ -125,11 +132,34 @@ def get_face_encoder(choice, weights_path):
     return model
 
 
-def run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, device, start_epoch=0, history=[]):
+def save_images(args, face_decoder, voice_encoder_embeddings, epoch, dataset_type):
+    if args.save_images:
+
+        with torch.no_grad():
+            landmarks_predicted, images_predicted = face_decoder(voice_encoder_embeddings)
+
+        _, axes = plt.subplots(1, 1, figsize=(12, 8))
+        temp_image = (images_predicted[0].cpu() * 255).to(torch.uint8)
+        axes.imshow(temp_image.permute(1, 2, 0))
+        axes.set_title("Reconstructed image")
+        axes.axis("off")
+        temp_image = landmarks_predicted[0].cpu().view(72, 2)
+        x, y =zip(*temp_image.squeeze(0))
+        axes.scatter(x, y, c='red', marker='o', s=2)
+
+        plt.tight_layout()
+        directory = f"{args.save_folder_path}/images/{dataset_type}"
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        plt.savefig(f"{directory}/{epoch}.jpg")
+
+
+def run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, face_decoder, device, start_epoch=0, history=[]):
     for epoch in range(start_epoch, args.num_epochs + start_epoch):
         voice_encoder.train()
         train_sum_loss, train_base_loss, train_face_encoder_loss, train_face_decoder_loss = 0, 0, 0, 0
-        for (inputs, true_embeddings) in tqdm(train_dataloader):
+        saved_image_index = np.random.randint(0, len(train_dataloader))
+        for step, (inputs, true_embeddings) in enumerate(tqdm(train_dataloader)):
             inputs, true_embeddings = inputs.to(device), true_embeddings.to(device)
 
             optimizer.zero_grad()
@@ -142,11 +172,14 @@ def run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, 
             train_base_loss += base_loss.item() * inputs.size(0)
             train_face_encoder_loss += face_encoder_loss.item() * inputs.size(0)
             train_face_decoder_loss += face_decoder_loss.item() * inputs.size(0)
+            if step == saved_image_index:
+                save_images(args, face_decoder, voice_encoder_embeddings, epoch, "train")
     
         voice_encoder.eval()
         val_sum_loss, val_base_loss, val_face_encoder_loss, val_face_decoder_loss = 0, 0, 0, 0
+        saved_image_index = np.random.randint(0, len(val_dataloader))
         with torch.no_grad():
-            for (inputs, true_embeddings) in tqdm(val_dataloader):
+            for step, (inputs, true_embeddings) in enumerate(tqdm(val_dataloader)):
                 inputs, true_embeddings = inputs.to(device), true_embeddings.to(device)
                 voice_encoder_embeddings = voice_encoder(inputs)
                 sum_loss, base_loss, face_encoder_loss, face_decoder_loss  = loss_fn(voice_encoder_embeddings, true_embeddings)
@@ -155,6 +188,9 @@ def run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, 
                 val_base_loss += base_loss.item() * inputs.size(0)
                 val_face_encoder_loss += face_encoder_loss.item() * inputs.size(0)
                 val_face_decoder_loss += face_decoder_loss.item() * inputs.size(0)
+
+                if step == saved_image_index:
+                    save_images(args, face_decoder, voice_encoder_embeddings, epoch, "val")
 
         train_sum_loss /= len(train_dataloader.sampler)
         val_sum_loss /= len(val_dataloader.sampler)
@@ -194,14 +230,14 @@ def main():
     face_encoder = get_face_encoder(args.face_encoder, args.face_encoder_weights_path).to(device)
     face_encoder.eval()
 
-    optimizer = optim.Adam(voice_encoder.parameters(), lr=args.learning_rate)
+    optimizer = optim.Adam(voice_encoder.parameters(), lr=args.learning_rate, betas=(0.5, 0.999), eps=0.0001)
     loss_fn = S2FLoss(face_encoder.get_last_layer_activation, face_decoder.get_predifined_layer_activation)
 
     if args.continue_training_path is None:
         # Train new model
         model_saver = ModelSaver(f"{args.save_folder_path}/latest_model.pt",
                             f"{args.save_folder_path}/best_model.pt")
-        run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, device)
+        run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, face_decoder, device)
     else:
         # Continue training existing model
         checkpoint = torch.load(args.continue_training_path)
@@ -212,7 +248,7 @@ def main():
         voice_encoder.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         history = checkpoint["history"]
-        run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, device, epoch, history)
+        run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, face_decoder, device, epoch, history)
 
 
 if __name__ == "__main__":
