@@ -3,8 +3,8 @@ from torch.utils.data import Dataset
 import numpy as np
 
 
-class S2fDataset(Dataset):
-    def __init__(self, root_folder, transform=None, target_transform=None):
+class S2fDatasetAlltoAll(Dataset):
+    def __init__(self, root_folder, is_ast=False, transform=None, target_transform=None):
         self.root_folder = root_folder
         self.transform = transform
         self.target_transform = target_transform
@@ -12,7 +12,8 @@ class S2fDataset(Dataset):
         self.spectrograms_paths = []
         self.find_paths()
         self.individuals_number = len(self.emebddings_paths)
-
+        self.is_ast = is_ast
+        
     def find_paths(self):
         for person_dir in os.listdir(self.root_folder):
             spectrogram_path = os.path.join(self.root_folder, person_dir, "audios")
@@ -61,4 +62,6 @@ class S2fDataset(Dataset):
         embedding_path = self.emebddings_paths[person_idx][embedding_idx]
         spectrogram = np.load(spectrogram_path)
         embedding = np.load(embedding_path)
+        if self.is_ast:
+            spectrogram = spectrogram.squeeze()
         return spectrogram, embedding
