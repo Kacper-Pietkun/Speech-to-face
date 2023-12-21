@@ -96,7 +96,8 @@ class FaceDecoder(nn.Module):
         layers.append(texture_layer5)
 
         texture_layer6 = nn.Sequential(
-            nn.Conv2d(in_channels=32, out_channels=3, kernel_size=1, stride=1)
+            nn.Conv2d(in_channels=32, out_channels=3, kernel_size=1, stride=1),
+            nn.Sigmoid()
         )
         layers.append(texture_layer6)
 

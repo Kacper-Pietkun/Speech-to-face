@@ -115,13 +115,13 @@ class VGGFace_serengil(nn.Module):
         self.layers.append(self.layer14)
 
         self.layer15 = nn.Sequential(
-            nn.Conv2d(in_channels=4096, out_channels=4096, kernel_size=(1,1), stride=1),
-            nn.ReLU(),
-            nn.Dropout(p=0.5)
+            nn.Conv2d(in_channels=4096, out_channels=4096, kernel_size=(1,1), stride=1)
         )
         self.layers.append(self.layer15)
 
         self.layer16 = nn.Sequential(
+            nn.ReLU(),
+            nn.Dropout(p=0.5),
             nn.Conv2d(in_channels=4096, out_channels=2622, kernel_size=(1,1), stride=1),
             nn.Flatten()
         )
@@ -243,13 +243,13 @@ class VGGFace16_rcmalli(nn.Module):
         self.layers.append(self.layer14)
 
         self.layer15 = nn.Sequential(
-            nn.Linear(in_features=4096, out_features=4096),
-            nn.ReLU(),
+            nn.Linear(in_features=4096, out_features=4096)
         )
         self.layers.append(self.layer15)
 
         self.layer16 = nn.Sequential(
-            nn.Linear(in_features=4096, out_features=2622),
+            nn.ReLU(),
+            nn.Linear(in_features=4096, out_features=2622)
         )
         self.layers.append(self.layer16)
 
