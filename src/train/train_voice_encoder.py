@@ -12,7 +12,8 @@ import torch.optim as optim
 from torch.linalg import norm
 from torch.utils.data import DataLoader
 from argparse import ArgumentParser
-from datasets.s2f_dataset import S2fDataset
+from datasets.s2f_dataset_all_to_all import S2fDatasetAlltoAll
+from datasets.s2f_dataset_one_to_one import S2fDatasetOneToOne
 from models.face_encoder import VGGFace16_rcmalli, VGGFace_serengil
 from models.face_decoder import FaceDecoder
 from models.voice_encoder import VoiceEncoder
@@ -42,6 +43,9 @@ parser.add_argument("--gpu", type=int, default=0,
 
 parser.add_argument("--num-workers", type=int, default=12,
                     help="Number of workers for the train and validation dataloaders")
+
+parser.add_argument("--dataloader-type", type=str, default="all_to_all", choices=["all_to_all", "one_to_one"],
+                    help="Type of the dataloader (all_to_all takes much more time, because it creates much more training pairs)")
 
 parser.add_argument("--face-encoder", type=str, default="vgg_face_serengil", choices=["vgg_face_serengil", "vgg_face_16_rcmalli"],
                     help="Backend for calculating embedding (features) of images")
@@ -217,9 +221,16 @@ def main():
 
     device = get_device(args.gpu)
 
-    train_dataset = S2fDataset(args.train_dataset_path)
+    if args.dataloader_type == "all_to_all":
+        train_dataset = S2fDatasetAlltoAll(args.train_dataset_path)
+        val_dataset = S2fDatasetAlltoAll(args.val_dataset_path)
+    elif args.dataloader_type == "one_to_one":
+        train_dataset = S2fDatasetOneToOne(args.train_dataset_path)
+        val_dataset = S2fDatasetOneToOne(args.val_dataset_path)
+    else:
+        raise ValueError(f"Dataloader '{args.dataloader_type}' does not exist")
+
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-    val_dataset = S2fDataset(args.val_dataset_path)
     val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
     voice_encoder = VoiceEncoder().to(device)
