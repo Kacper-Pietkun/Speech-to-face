@@ -17,6 +17,7 @@ from datasets.s2f_dataset_one_to_one import S2fDatasetOneToOne
 from models.face_encoder import VGGFace16_rcmalli, VGGFace_serengil
 from models.face_decoder import FaceDecoder
 from model_saver import ModelSaver
+from early_stopper import EarlyStopper
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import pandas as pd
@@ -32,9 +33,11 @@ parser.add_argument("--train-dataset-path", type=str, required=True,
 parser.add_argument("--val-dataset-path", type=str, required=True,
                     help="Absolute path to the dataset validation split with face embeddings and spectrograms")
 
-parser.add_argument("--batch-size", type=int, default=2)
+parser.add_argument("--batch-size", type=int, default=8)
+parser.add_argument("--batch-size-fine-tune", type=int, default=2)
 
-parser.add_argument("--learning-rate", type=float, default=0.00001)
+parser.add_argument("--learning-rate", type=float, default=0.0001)
+parser.add_argument("--learning-rate-fine-tune", type=float, default=0.000001)
 
 parser.add_argument("--num-epochs", type=int, default=100)
 
@@ -66,6 +69,12 @@ parser.add_argument("--save-images", action="store_true",
 
 parser.add_argument("--continue-training-path", type=str,
                     help="path to the file of the model that will be used to continue training. If not passed then new model will be trained")
+
+parser.add_argument("--early-stopping", action="store_true",
+                    help="Use early stopping")
+
+parser.add_argument("--early-stopping-patience", type=int, default=5,
+                    help="Patience for early stopping - allowed number of epochs with no improvement")
 
 
 class S2FLoss(nn.Module):
@@ -176,7 +185,7 @@ def save_history_plots(args, history):
         plt.clf()
 
 
-def run(args, ast, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, face_decoder, device, start_epoch=0, history=[]):
+def run(args, ast, optimizer, loss_fn, model_saver, early_stopper, train_dataloader, val_dataloader, face_decoder, device, start_epoch=0, history=[]):
     for epoch in range(start_epoch, args.num_epochs + start_epoch):
         ast.train()
         train_sum_loss, train_base_loss, train_face_encoder_loss, train_face_decoder_loss = 0, 0, 0, 0
@@ -236,6 +245,13 @@ def run(args, ast, optimizer, loss_fn, model_saver, train_dataloader, val_datalo
         save_history_plots(args, history_df)
         print('Epoch: {} Train Loss: {:.4f} Validation Loss: {:.4f} '.format(epoch, train_sum_loss, val_sum_loss))
 
+        if early_stopper:
+            decision = early_stopper.should_stop(val_sum_loss)
+            if decision is True:
+                print("EARLY STOPPER - STOP TRAINING")
+                return
+
+
 
 def main():
     args = parser.parse_args()
@@ -251,7 +267,6 @@ def main():
     else:
         raise ValueError(f"Dataloader '{args.dataloader_type}' does not exist")
 
-
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
@@ -259,8 +274,7 @@ def main():
     # freeze every layer but - classifier.dense.bias and classifier.dense.weight
     for name, param in ast.named_parameters():
         if name != "classifier.dense.weight" and name != "classifier.dense.bias":
-            # param.requires_grad = False
-            ...
+            param.requires_grad = False
         else:
             nn.init.trunc_normal_(param)
    
@@ -275,11 +289,15 @@ def main():
     optimizer = optim.Adam(ast.parameters(), lr=args.learning_rate)
     loss_fn = S2FLoss(face_encoder.get_last_layer_activation, face_decoder.get_predifined_layer_activation)
 
+    early_stopper = None
+    if args.early_stopping:
+        early_stopper = EarlyStopper(args.early_stopping_patience)
+
     if args.continue_training_path is None:
         # Train new model
         model_saver = ModelSaver(f"{args.save_folder_path}/latest_model.pt",
                             f"{args.save_folder_path}/best_model.pt")
-        run(args, ast, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, face_decoder, device)
+        history = run(args, ast, optimizer, loss_fn, model_saver, early_stopper, train_dataloader, val_dataloader, face_decoder, device)
     else:
         # Continue training existing model
         checkpoint = torch.load(args.continue_training_path)
@@ -290,7 +308,24 @@ def main():
         ast.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         history = checkpoint["history"]
-        run(args, ast, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, face_decoder, device, epoch, history)
+        history = run(args, ast, optimizer, loss_fn, model_saver, early_stopper, train_dataloader, val_dataloader, face_decoder, device, epoch, history)
+
+    print("FINE TUNNING")
+    best_checkpoint = torch.load(f"{args.save_folder_path}/best_model.pt")
+    epoch = best_checkpoint["epoch"] + 1
+    history = best_checkpoint["history"]
+    # unfreeze whole model
+    for name, param in ast.named_parameters():
+        param.requires_grad = True
+    optimizer = optim.Adam(ast.parameters(), lr=args.learning_rate_fine_tune)
+    early_stopper.reset_state()
+
+    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size_fine_tune, shuffle=True, num_workers=args.num_workers)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size_fine_tune, shuffle=False, num_workers=args.num_workers)
+    
+    model_saver.start_finetune(epoch)
+
+    run(args, ast, optimizer, loss_fn, model_saver, early_stopper, train_dataloader, val_dataloader, face_decoder, device, epoch, history)
 
 
 if __name__ == "__main__":
