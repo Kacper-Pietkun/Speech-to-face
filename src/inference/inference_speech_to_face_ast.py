@@ -36,10 +36,10 @@ parser.add_argument("--audio-length", default=10.26, type=float,
 parser.add_argument("--sampling-rate", default=16000, type=int,
                     help="The number of samples per second of audio")
 
-parser.add_argument("--mean", default=-4.2677393, type=int, #-1.3173023e-06
+parser.add_argument("--mean", default=-4.2677393, type=float, #-1.3173023e-06
                     help="Mean value of the audio files (calculated on the training set)")
 
-parser.add_argument("--std", default=4.5689974, type=int, #0.039394222
+parser.add_argument("--std", default=4.5689974, type=float, #0.039394222
                     help="Standard deviation value of the audio files (calculated on the training set)")
 
 
@@ -74,7 +74,7 @@ def main():
     root = os.path.dirname(args.audio_file_path)
     file_base, _ = os.path.splitext(os.path.basename(args.audio_file_path))
     normalized_file_path = audio_processing.normalize_audio(args.audio_file_path, root, file_base)
-    waveform, _ = librosa.load(args.audio_file_path, duration=args.audio_length, sr=args.sampling_rate, mono=True)
+    waveform, _ = librosa.load(normalized_file_path, duration=args.audio_length, sr=args.sampling_rate, mono=True)
     waveform = audio_processing.stretch_audio(args, waveform)
 
     inputs1 = feature_extractor(waveform, sampling_rate=args.sampling_rate, padding="max_length", return_tensors="np")
