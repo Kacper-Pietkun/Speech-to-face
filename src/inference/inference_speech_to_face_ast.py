@@ -29,7 +29,7 @@ parser.add_argument("--face-decoder-path", type=str, required=True,
 parser.add_argument("--gpu", type=int, default=0,
                     help="-1 for cpu prediction")
 
-parser.add_argument("--audio-length", default=6, type=float,
+parser.add_argument("--audio-length", default=10.26, type=float,
                     help="length of the audio that will be converted to spectogram. Longer audio \
                           files will be clipped, and shorter files will be repeated")
 
