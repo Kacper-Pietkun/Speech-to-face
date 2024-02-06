@@ -19,6 +19,9 @@ Additionally:
 - You can stop training whenever you want and rerun the script to continue the training (you need to specify `--continue-training-path` paramater, which tells the programe where the trained weights of the VoiceEncoder are located at).
 - If possible train VoiceEncoder with GPU, by setting `--gpu` parameter to 1, because CPU training is very slow
 
+
+Run `train_ast.py` if you want to train Audio Spectrogram Transformer as the VoiceEncoder. The script is almost identical to the `train_voice_encoder.py` script, however there are some differences. For example, you can use early stopping (specify `--early-stopping` parameter). Moreover, the AST model training is splitted into two parts. During the first part, whole model is frozen except the head, which is trained. During the second part whole model is unfrozen and the model is fine-tuned.
+
 # Face Decoder
 
 Run `train_face_decoderr.py` script to train FaceDecoder

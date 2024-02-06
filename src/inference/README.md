@@ -15,6 +15,8 @@ You need to:
 - pass `--voice-encoder-path` parameter, which specifies a path to the trained weights of the VoiceEncoder model
 - pass `--face-decoder-path` parameter, which specifies a path to the trained weights of the FaceDecoder model
 
+Use `inference_speech_to_face_ast.py` script when you want to use Audio Spectrogram Transformer as the VoiceEncoder or use `inference_speech_to_face.py` script when you want to use the VoiceEncoder architecture from the SpeechToFace paper.
+
 ## Face to Face
 
 In this pipeline two models are used:

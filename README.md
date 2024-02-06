@@ -11,9 +11,12 @@ Whole implementation is based on PyTorch framework
 
 ## Overview
 In this project you will find implementation of three models:
-- **Voice Encoder** - architecture based on [Speech2Face: Learning the Face Behind a Voice](https://arxiv.org/abs/1905.09773) paper [1]
-
-  We trained this model from scratch
+- **Voice Encoder**
+  In this project we used two different models:
+    - architecture based on [Speech2Face: Learning the Face Behind a Voice](https://arxiv.org/abs/1905.09773) paper [1] (We trained this model from scratch)
+    - Audio Spectrogram Transformer (AST) - we used pre-trained model from [Hugging Face](https://huggingface.co/docs/transformers/model_doc/audio-spectrogram-transformer) and fine-tuned in on VoxCeleb Dataset
+  
+  When using Speech-to-Face pipeline you can choose model which will be used
 
 - **Face Encoder** - architecture based on [Deep Face Recognition](https://www.robots.ox.ac.uk/~vgg/publications/2015/Parkhi15/parkhi15.pdf) paper [2]
 
@@ -30,7 +33,7 @@ In this project you will find implementation of three models:
 ## Sections
 To read more about the project go to the page that you are interested in:
 - **[Data preprocessing](https://github.com/Kacper-Pietkun/Speech-to-face/tree/master/src/data_preprocessing)**
-    - Converting audio files of speech to spectrograms
+    - Converting audio files of speech to spectrograms (separate for VoiceEncoder and AST)
     - Converting images of faces to 4096-D feature vectors (face embeddings)
     - Generating face landmarks for images of faces
     - Resizing images
@@ -46,10 +49,10 @@ To read more about the project go to the page that you are interested in:
     - Convert FaceEncoder implementation from TensorFlow to Pytorch (model and trained weights from [github.com/serengil/deepface](https://github.com/serengil/deepface) repository)
     - Convert FaceEncoder implementation from TensorFlow to Pytorch (model and trained weights from [github.com/rcmalli/keras-vggface](https://github.com/rcmalli/keras-vggface) repository)
 - **[Train VoiceEncoder model and FaceDecoder model](https://github.com/Kacper-Pietkun/Speech-to-face/tree/master/src/train)**
-    - Scrpit for training VoiceEncoder model
+    - Scrpit for training VoiceEncoder model (separate for VoiceEncoder and AST)
     - Script for training FaceDecoder model
 - **[Inference - usage of trained models](https://github.com/Kacper-Pietkun/Speech-to-face/tree/master/src/inference)**
-    - Speech-to-Face pipeline: Use trained models (VoiceEncoder and FaceDecoder) to generate image of a face based on a person's speech
+    - Speech-to-Face pipeline: Use trained models (VoiceEncoder/AST and FaceDecoder) to generate image of a face based on a person's speech
     - Face-to-Face pipeline: Use trained models (FaceEncoder and FaceDecoder) to generate image of a face based on image of a face
 
 
@@ -63,7 +66,9 @@ In the project we used three different datasets:
 
 
 ## Results
-To be published soon
+We achieved the best results using fine-tuned Audio Spectrogram Transformer as VoiceEncoder model. Moreover, we used VGGFace_serengil as the FaceEncoder when training the VoiceEncoder and FaceDecoder models. The results obtained when using the VoiceEncoder implementation from the Speech2Face article were much worse - for each audio input FaceDecoder generated the same face. In the image below you can see the conclusion of our work. In the left column you can see the original image of the person from the HQ-VoxCeleb dataset. In the middle column you can see the recostruction of the face from the Face-to-Face pipeline (i.e. convert image to the face embbedding and reconstruct the image - voice is not used in this pipeline). Finally in the right column you can see the results from the Speech-to-Face pipeline (i.e. convert speech to the spectrogram, calculate face embedding from that spectrogram, reconstruct the face).
+
+![Results](images/results.png "Results")
 
 ## References
 

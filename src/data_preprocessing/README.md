@@ -1,6 +1,6 @@
 # Audio preprocessing - spectrograms (+ audio normalization)
 
-The `audio_spectrograms.py` script can be used to convert raw audio files (with extensions such as: ".wav", ".m4a", etc.) into spectrograms, that can be directly used as input to the voice encoder neural network.
+The `audio_spectrograms.py` script can be used to convert raw audio files (with extensions such as: ".wav", ".m4a", etc.) into spectrograms, that can be directly used as input to the voice encoder neural network (VoiceEncoder architecture from Speech-to-Face paper).
 Spectrogram properties can be modified by changing script's input arguments. The default values are set to be the same as in [Speech2Face: Learning the Face Behind a Voice](https://arxiv.org/abs/1905.09773) article. Additionally audio files are being normalized before computing spectrograms. Normalization consists of following modifications: converting file to ".wav" format with PCM16 codec, setting sample rate to 16KHz, saving file as one channel, normalization with RMS algorithm with target size equal to -23.
 You need to specify `--data-dir` and `--save-dir` arguments which tell where the audio files are located and where it should save spectrograms. Script is adjusted to traverse nested directories, so you don't have to put all of the audio files in the same directory. The script will recreate the nested structure of the directories in `--save-dir` directory. Saved spectrograms will have the same names as the original audio files, but they will be saved with `.npy` extension.
 
@@ -9,6 +9,8 @@ You need to specify `--data-dir` and `--save-dir` arguments which tell where the
 python audio_spectrograms.py --data-dir <path_to_the_directory_where_data_is_stored> \
                              --save-dir <path_to_the_directory_where_spectrograms_will_be_saved>
 ```
+
+The `ast_audio_spectrogram.py` works in a similar way. It can be used to preprocess raw audio files to be compatible with AST (Audio Spectrogram Transformer) network. Usage of this script is also similar, however you need to pass two additional arguments: `mean` and `std`, which represent values that will be used to normalize log-Mel features. You can use the default ones (the one proposed by the authors), however, you can calculate them based on your dataset with `get_aduio_norm_stats.py` script.
 
 # Images preprocessing - face embeddings
 

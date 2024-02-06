@@ -19,6 +19,8 @@ Architecture is based on a [Speech2Face: Learning the Face Behind a Voice](https
 - **Model input:** spectrogram calculated from a 6 seconds audio file representing person's speech (using stft from librosa library)
 - **Model output:** 4096-D feature vector of the face (voice encoder tries to learn to generate face embedding of the person given speech of that person).
 
+Note: In this repository you can also use Audio Spectrogram Transformer as VoiceEncoder. It does not have its own file, because it is automatically downloaded from the Hugging Face repository in a training script.
+
 
 # Face Decoder
 Architecture is based on a [Synthesizing Normalized Faces from Facial Identity Features](https://arxiv.org/abs/1701.04851) paper.
