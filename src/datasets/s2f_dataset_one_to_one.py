@@ -53,4 +53,6 @@ class S2fDatasetOneToOne(Dataset):
         embedding = np.load(embedding_path)
         if self.is_ast:
             spectrogram = spectrogram.squeeze()
+        else:
+            spectrogram = np.expand_dims(spectrogram[0], 0)
         return spectrogram, embedding

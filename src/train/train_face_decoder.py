@@ -156,7 +156,8 @@ def save_history_plots(args, history):
 
 
 def run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, device, start_epoch=0, history=[]):
-    face_encoder.eval()
+    if face_encoder:
+        face_encoder.eval()
     for epoch in range(start_epoch, args.num_epochs + start_epoch):
         face_decoder.train()
         train_sum_loss, train_landmarks_loss, train_textures_loss, train_embeddings_loss = 0, 0, 0, 0
@@ -228,7 +229,9 @@ def main():
     val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
 
     face_decoder = FaceDecoder().to(device)
-    face_encoder = get_face_encoder(args.face_encoder, args.face_encoder_weights_path).to(device)
+    face_encoder = None
+    if args.face_encoder_weights_path:
+        face_encoder = get_face_encoder(args.face_encoder, args.face_encoder_weights_path).to(device)
 
     optimizer = optim.Adam(face_decoder.parameters(), lr=args.learning_rate)
     loss_fn = FaceDecoderLoss()
