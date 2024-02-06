@@ -13,7 +13,7 @@ Whole implementation is based on PyTorch framework
 In this project you will find implementation of three models:
 - **Voice Encoder**
   In this project we used two different models:
-    - architecture based on [Speech2Face: Learning the Face Behind a Voice](https://arxiv.org/abs/1905.09773) paper [1] (We trained this model from scratch)
+    - Architecture based on [Speech2Face: Learning the Face Behind a Voice](https://arxiv.org/abs/1905.09773) paper [1] (We trained this model from scratch)
     - Audio Spectrogram Transformer (AST) - we used pre-trained model from [Hugging Face](https://huggingface.co/docs/transformers/model_doc/audio-spectrogram-transformer) and fine-tuned in on VoxCeleb Dataset
   
   When using Speech-to-Face pipeline you can choose model which will be used
