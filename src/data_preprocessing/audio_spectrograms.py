@@ -46,11 +46,13 @@ def normalize_audio(file_path, root, file_base):
 
 def stretch_audio(args, waveform):
     duration = librosa.get_duration(y=waveform, sr=args.sampling_rate)
-    if duration < 6:
-        padding_length = np.round((args.audio_length - duration) * args.sampling_rate)
-        padded_waveform = waveform[:int(padding_length)]
-        waveform = np.concatenate((waveform, padded_waveform))
-    return waveform
+    if duration < args.audio_length:
+        padding_length = np.round((args.audio_length * args.sampling_rate - duration * args.sampling_rate))
+        padding =  waveform[:int(padding_length)]
+        while padding_length > 0:
+          waveform = np.concatenate((waveform, padding))
+          padding_length -= padding.shape[0]
+    return waveform[:int(args.audio_length * args.sampling_rate)]
 
 
 def compute_spectrograms(args, waveform):
