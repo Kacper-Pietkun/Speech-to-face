@@ -5,6 +5,8 @@ import os
 from tqdm import tqdm
 import ffmpeg
 import concurrent.futures
+import subprocess
+from transformers import ASTFeatureExtractor
 
 
 ACCEPTED_AUDIO_EXTENSIONS = ['.m4a', '.wav']
@@ -25,31 +27,38 @@ parser.add_argument("--sampling-rate", default=16000, type=int,
 def normalize_audio(file_path, root, file_base):
     output_path = os.path.join(root, f"{file_base}_normalized.wav")
     ffmpeg.input(file_path).output(output_path, ar=16000, acodec="pcm_s16le", ac=1, loglevel="quiet").run()
+    normalize_command = ["ffmpeg-normalize", output_path, "--normalization-type", "rms", "-t", "-23", "-o", output_path, '-f']
+    subprocess.run(normalize_command)
     return output_path
 
 def stretch_audio(args, waveform):
     duration = librosa.get_duration(y=waveform, sr=args.sampling_rate)
-    if duration < 6:
-        padding_length = np.round((args.audio_length - duration) * args.sampling_rate)
-        padded_waveform = waveform[:int(padding_length)]
-        waveform = np.concatenate((waveform, padded_waveform))
-    return waveform
+    if duration < args.audio_length:
+        padding_length = np.round((args.audio_length * args.sampling_rate - duration * args.sampling_rate))
+        padding =  waveform[:int(padding_length)]
+        while padding_length > 0:
+          waveform = np.concatenate((waveform, padding))
+          padding_length -= padding.shape[0]
+    return waveform[:int(args.audio_length * args.sampling_rate)]
 
-
-def get_mean_std(args, file_path, root, file_base):
+def get_mean_std(args, file_path, root, file_base, feature_extractor):
     normalized_file_path = normalize_audio(file_path, root, file_base)
     waveform, _ = librosa.load(normalized_file_path, duration=args.audio_length, sr=args.sampling_rate, mono=True)
     waveform = stretch_audio(args, waveform)
     os.remove(normalized_file_path)
-    mean = np.mean(waveform)
-    std = np.std(waveform)
-    return mean, std
+
+    inputs = feature_extractor(waveform, sampling_rate=args.sampling_rate, padding="max_length", return_tensors="np")
+    input_values = inputs.input_values
+    cur_mean = np.mean(input_values)
+    cur_std = np.std(input_values)
+
+    return cur_mean, cur_std
 
 
 def main():
     args = parser.parse_args()
 
-
+    feature_extractor = ASTFeatureExtractor(sampling_rate=args.sampling_rate, do_normalize=False, max_length=1000)
 
     roots = []
     file_paths = []
@@ -67,13 +76,18 @@ def main():
     means = []
     stds = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-        tasks = [executor.submit(get_mean_std, args, file_path, root, file_base) for (file_path, root, file_base) in zip(file_paths, roots, file_bases)]
+        tasks = [executor.submit(get_mean_std, args, file_path, root, file_base, feature_extractor) for (file_path, root, file_base) in zip(file_paths, roots, file_bases)]
         for task in concurrent.futures.as_completed(tasks):
             mean, std = task.result()
             means.append(mean)
             stds.append(std)
 
     print(np.mean(means), np.mean(stds))
+    print(len(means), len(stds))
+
+    with open("statistics.txt", "w") as file:
+        file.write(f"Mean: {np.mean(means)}\n")
+        file.write(f"Stds: {np.mean(stds)}\n")
 
 
 if __name__ == "__main__":
