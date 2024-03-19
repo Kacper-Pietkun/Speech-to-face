@@ -28,7 +28,7 @@ parser.add_argument("--train-dataset-path", type=str, required=True,
 parser.add_argument("--val-dataset-path", type=str, required=True,
                     help="Absolute path to the dataset validation split with face embeddings, face landmarks and face images")
 
-parser.add_argument("--batch-size", type=int, default=64,
+parser.add_argument("--batch-size", type=int, default=16,
                     help="must be bigger than 1, because of the BatchNorm operator")
 
 parser.add_argument("--learning-rate", type=float, default=1e-3)
@@ -56,7 +56,7 @@ parser.add_argument("--continue-training-path", type=str,
 
 
 class FaceDecoderLoss(nn.Module):
-    def __init__(self, coef_landmarks=1, coef_textures=100, coef_embeddings=10):
+    def __init__(self, coef_landmarks=1, coef_textures=100, coef_embeddings=100):
         super().__init__()
         self.coef_landmarks = coef_landmarks
         self.coef_textures = coef_textures
@@ -81,7 +81,7 @@ class FaceDecoderLoss(nn.Module):
             sum_loss += loss_textures
         # Cosine Similarity loss for embeddings
         if embeddings_true is not None and embeddings_predicted is not None:
-            loss_embeddings = self.coef_embeddings * self.cos_loss(embeddings_true, embeddings_predicted)
+            loss_embeddings = self.coef_embeddings * self.cos_loss(embeddings_true, embeddings_predicted, torch.tensor([1]).to("cuda"))
             sum_loss += loss_embeddings
 
         return sum_loss, loss_landmarks, loss_textures, loss_embeddings
@@ -136,6 +136,7 @@ def save_face_visualizations(args, images_true, images_predicted, landmarks_true
             os.makedirs(directory)
         plt.savefig(f"{directory}/{epoch}.jpg")
         plt.clf()
+        plt.close()
 
 
 def save_history_plots(args, history):
@@ -153,11 +154,10 @@ def save_history_plots(args, history):
             os.makedirs(directory)
         plt.savefig(f"{directory}/{loss_key}.jpg")
         plt.clf()
+        plt.close()
 
 
 def run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, device, start_epoch=0, history=[]):
-    if face_encoder:
-        face_encoder.eval()
     for epoch in range(start_epoch, args.num_epochs + start_epoch):
         face_decoder.train()
         train_sum_loss, train_landmarks_loss, train_textures_loss, train_embeddings_loss = 0, 0, 0, 0
@@ -169,7 +169,10 @@ def run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, train
 
             optimizer.zero_grad()
             landmarks_predicted, images_predicted = face_decoder(embeddings_true)
-            sum_loss, landmarks_loss, textures_loss, embeddings_loss = loss_fn(landmarks_true, landmarks_predicted, images_true, images_predicted)
+            with torch.no_grad():
+                embeddings_predicted = face_encoder(images_predicted, get_embedding=True)
+            sum_loss, landmarks_loss, textures_loss, embeddings_loss = loss_fn(landmarks_true, landmarks_predicted, images_true, images_predicted,
+                                                                               embeddings_true, embeddings_predicted)
             sum_loss.backward()
             optimizer.step()
 
@@ -187,7 +190,9 @@ def run(args, face_decoder, face_encoder, optimizer, loss_fn, model_saver, train
             for step, (images_true, embeddings_true, landmarks_true) in enumerate(tqdm(val_dataloader)):
                 images_true, embeddings_true, landmarks_true = images_true.to(device), embeddings_true.to(device), landmarks_true.to(device)
                 landmarks_predicted, images_predicted = face_decoder(embeddings_true)
-                sum_loss, landmarks_loss, textures_loss, embeddings_loss = loss_fn(landmarks_true, landmarks_predicted, images_true, images_predicted)
+                embeddings_predicted = face_encoder(images_predicted, get_embedding=True)
+                sum_loss, landmarks_loss, textures_loss, embeddings_loss = loss_fn(landmarks_true, landmarks_predicted, images_true, images_predicted,
+                                                                                   embeddings_true, embeddings_predicted)
 
                 val_sum_loss += sum_loss.item() * images_true.size(0)
                 val_landmarks_loss += landmarks_loss.item() * images_true.size(0)
@@ -222,7 +227,6 @@ def main():
     args = parser.parse_args()
 
     device = get_device(args.gpu)
-
     train_dataset = FaceDecoderDataset(args.train_dataset_path)
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_dataset = FaceDecoderDataset(args.val_dataset_path)
@@ -232,6 +236,7 @@ def main():
     face_encoder = None
     if args.face_encoder_weights_path:
         face_encoder = get_face_encoder(args.face_encoder, args.face_encoder_weights_path).to(device)
+        face_encoder.eval()
 
     optimizer = optim.Adam(face_decoder.parameters(), lr=args.learning_rate)
     loss_fn = FaceDecoderLoss()

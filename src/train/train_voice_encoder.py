@@ -156,6 +156,8 @@ def save_images(args, face_decoder, voice_encoder_embeddings, epoch, dataset_typ
         if not os.path.exists(directory):
             os.makedirs(directory)
         plt.savefig(f"{directory}/{epoch}.jpg")
+        plt.clf()
+        plt.close()
 
 
 def run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, face_decoder, device, start_epoch=0, history=[]):
