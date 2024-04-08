@@ -14,10 +14,12 @@ from torch.utils.data import DataLoader
 from argparse import ArgumentParser
 from datasets.s2f_dataset_all_to_all import S2fDatasetAlltoAll
 from datasets.s2f_dataset_one_to_one import S2fDatasetOneToOne
+from datasets.s2f_dataset_all_to_one import S2fDatasetAllToOne
 from models.face_encoder import VGGFace16_rcmalli, VGGFace_serengil
 from models.face_decoder import FaceDecoder
 from models.voice_encoder import VoiceEncoder
 from model_saver import ModelSaver
+from losses import S2FLoss
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import pandas as pd
@@ -32,7 +34,7 @@ parser.add_argument("--train-dataset-path", type=str, required=True,
 parser.add_argument("--val-dataset-path", type=str, required=True,
                     help="Absolute path to the dataset validation split with face embeddings and spectrograms")
 
-parser.add_argument("--batch-size", type=int, default=2)
+parser.add_argument("--batch-size", type=int, default=4)
 
 parser.add_argument("--learning-rate", type=float, default=0.001)
 
@@ -44,7 +46,7 @@ parser.add_argument("--gpu", type=int, default=0,
 parser.add_argument("--num-workers", type=int, default=12,
                     help="Number of workers for the train and validation dataloaders")
 
-parser.add_argument("--dataloader-type", type=str, default="all_to_all", choices=["all_to_all", "one_to_one"],
+parser.add_argument("--dataloader-type", type=str, default="all_to_one", choices=["all_to_all", "one_to_one", "all_to_one"],
                     help="Type of the dataloader (all_to_all takes much more time, because it creates much more training pairs)")
 
 parser.add_argument("--face-encoder", type=str, default="vgg_face_serengil", choices=["vgg_face_serengil", "vgg_face_16_rcmalli"],
@@ -68,55 +70,11 @@ parser.add_argument("--continue-training-path", type=str,
                     help="path to the file of the model that will be used to continue training. If not passed then new model will be trained")
 
 
-class S2FLoss(nn.Module):
-    def __init__(self, face_encoder_last_layer, face_decoder_first_layer, coe_1=30, coe_2=2, coe_3=50):
-        super().__init__()
-        self.face_encoder_last_layer = face_encoder_last_layer
-        self.face_decoder_first_layer = face_decoder_first_layer
-        self.mae_loss = nn.L1Loss()
-        self.coe_1 = coe_1
-        self.coe_2 = coe_2
-        self.coe_3 = coe_3
-
-    def forward(self, pred, true):
-        sum_loss = 0
-        loss_base, loss_face_encoder, loss_face_decoder = 0, 0, 0
-
-        # loss_base - v_f and v_s distance part
-        vs_normalized = pred / norm(pred)
-        vf_normalized = true / norm(true)
-        loss_base = torch.pow(norm(vf_normalized - vs_normalized), 2)
-        loss_base *= self.coe_1
-        sum_loss += loss_base
-
-        # loss_face_encoder - face encoder last layer activation part
-        vgg_v_s = self.face_encoder_last_layer(pred)
-        with torch.no_grad():
-            vgg_v_f = self.face_encoder_last_layer(true)
-        loss_face_encoder = self.knowledge_distilation(vgg_v_f, vgg_v_s)
-        loss_face_encoder *= self.coe_2
-        sum_loss += loss_face_encoder
-
-        # loss_face_decoder - face decoder first layers activation part
-        dec_v_s = self.face_decoder_first_layer(pred)
-        with torch.no_grad():
-            dec_v_f = self.face_decoder_first_layer(true)
-            loss_face_decoder = self.mae_loss(dec_v_f, dec_v_s)
-            loss_face_decoder *= self.coe_3
-            sum_loss += loss_face_decoder
-
-        return sum_loss, loss_base, loss_face_encoder, loss_face_decoder
-    
-    def knowledge_distilation(self, a, b, T=2):
-        p_a = F.softmax(a / T, dim=1)
-        p_b = F.log_softmax(b / T, dim=1)
-        return -(p_a * p_b).sum()
-
-
 def get_device(choice):
     if choice >= 0:
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{choice}")
+            torch.backends.cudnn.benchmark = True
         else:
             raise ValueError("GPU training was chosen but cuda is not available")
     else:
@@ -147,15 +105,33 @@ def save_images(args, face_decoder, voice_encoder_embeddings, epoch, dataset_typ
         axes.imshow(temp_image.permute(1, 2, 0))
         axes.set_title("Reconstructed image")
         axes.axis("off")
-        temp_image = landmarks_predicted[0].cpu().view(72, 2)
-        x, y =zip(*temp_image.squeeze(0))
-        axes.scatter(x, y, c='red', marker='o', s=2)
+        # temp_image = landmarks_predicted[0].cpu().view(72, 2)
+        # x, y =zip(*temp_image.squeeze(0))
+        # axes.scatter(x, y, c='red', marker='o', s=2)
 
         plt.tight_layout()
         directory = f"{args.save_folder_path}/images/{dataset_type}"
         if not os.path.exists(directory):
             os.makedirs(directory)
         plt.savefig(f"{directory}/{epoch}.jpg")
+        plt.clf()
+        plt.close()
+
+
+def save_history_plots(args, history):
+    losses_keys = ["train_sum_loss", "train_base_loss", "train_face_encoder_loss", "train_face_decoder_loss",
+                   "val_sum_loss", "val_base_loss", "val_face_encoder_loss", "val_face_decoder_loss"]
+    for loss_key in losses_keys:
+        plt.plot(history[loss_key], color='b', label=loss_key)
+        plt.title(f'Loss: {loss_key} Over Epochs')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.grid(True)
+        directory = f"{args.save_folder_path}/images"
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        plt.savefig(f"{directory}/{loss_key}.jpg")
         plt.clf()
         plt.close()
 
@@ -215,6 +191,7 @@ def run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, 
         history_df.to_csv(f"{args.save_folder_path}/history.csv", index=False)
         model_saver.save(val_sum_loss, epoch, voice_encoder.state_dict(), 
                                    optimizer.state_dict(), history, epoch%1==0)
+        save_history_plots(args, history_df)
         print('Epoch: {} Train Loss: {:.4f} Validation Loss: {:.4f} '.format(epoch, train_sum_loss, val_sum_loss))
 
 
@@ -223,12 +200,16 @@ def main():
 
     device = get_device(args.gpu)
 
+    print(f"Dataloader: {args.dataloader_type}")
     if args.dataloader_type == "all_to_all":
         train_dataset = S2fDatasetAlltoAll(args.train_dataset_path)
         val_dataset = S2fDatasetAlltoAll(args.val_dataset_path)
     elif args.dataloader_type == "one_to_one":
         train_dataset = S2fDatasetOneToOne(args.train_dataset_path)
         val_dataset = S2fDatasetOneToOne(args.val_dataset_path)
+    elif args.dataloader_type == "all_to_one":
+        train_dataset = S2fDatasetAllToOne(args.train_dataset_path)
+        val_dataset = S2fDatasetAllToOne(args.val_dataset_path)
     else:
         raise ValueError(f"Dataloader '{args.dataloader_type}' does not exist")
 
@@ -243,16 +224,19 @@ def main():
     face_encoder = get_face_encoder(args.face_encoder, args.face_encoder_weights_path).to(device)
     face_encoder.eval()
 
+    print(f"lr: {args.learning_rate}")
     optimizer = optim.Adam(voice_encoder.parameters(), lr=args.learning_rate, betas=(0.5, 0.999), eps=0.0001)
-    loss_fn = S2FLoss(face_encoder.get_last_layer_activation, face_decoder.get_predifined_layer_activation)
+    loss_fn = S2FLoss(face_encoder.get_last_layer_activation, face_decoder.get_predifined_layer_activation, coe_1=0.025, coe_2=200, coe_3=1)
 
     if args.continue_training_path is None:
         # Train new model
+        print("TRAINING FROM SCRATCH")
         model_saver = ModelSaver(f"{args.save_folder_path}/latest_model.pt",
                             f"{args.save_folder_path}/best_model.pt")
         run(args, voice_encoder, optimizer, loss_fn, model_saver, train_dataloader, val_dataloader, face_decoder, device)
     else:
         # Continue training existing model
+        print("CONTINUE TRAINING")
         checkpoint = torch.load(args.continue_training_path)
         epoch = checkpoint["epoch"] + 1
         model_saver = ModelSaver(f"{args.save_folder_path}/latest_model.pt",

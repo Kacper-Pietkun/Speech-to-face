@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 import numpy as np
 
 
-class S2fDatasetOneToOne(Dataset):
+class S2fDatasetAllToOne(Dataset):
     def __init__(self, root_folder, is_ast=False, transform=None, target_transform=None):
         self.root_folder = root_folder
         self.transform = transform
@@ -27,10 +27,11 @@ class S2fDatasetOneToOne(Dataset):
             if num_spec == 0 or num_emb == 0:
                 continue # skip identities which does not have spectrograms or embeddings
             
-            min_number = num_spec if num_spec < num_emb else num_emb
+            min_number = 20 if num_spec > 20 else num_spec
             self.spectrograms_paths += person_spectrograms[:min_number]
-            self.emebddings_paths += person_embeddings[:min_number]
-            assert len(self.emebddings_paths) == len(self.spectrograms_paths), "Unexpected number of spectrograms or embeddings (sizes are not equal)"
+
+            self.emebddings_paths += (min_number * [person_embeddings[0]])
+            assert len(self.spectrograms_paths) == len(self.emebddings_paths), "Unexpected number of spectrograms or embeddings (sizes are not equal)"
 
     def get_list_of_data_paths(self, path):
         data_paths = []
@@ -51,6 +52,7 @@ class S2fDatasetOneToOne(Dataset):
         embedding_path = self.emebddings_paths[idx]
         spectrogram = np.load(spectrogram_path)
         embedding = np.load(embedding_path)
+        
         if self.is_ast:
             spectrogram = spectrogram.squeeze()
         return spectrogram, embedding

@@ -14,9 +14,11 @@ from torch.utils.data import DataLoader
 from argparse import ArgumentParser
 from datasets.s2f_dataset_all_to_all import S2fDatasetAlltoAll
 from datasets.s2f_dataset_one_to_one import S2fDatasetOneToOne
+from datasets.s2f_dataset_all_to_one import S2fDatasetAllToOne
 from models.face_encoder import VGGFace16_rcmalli, VGGFace_serengil
 from models.face_decoder import FaceDecoder
 from model_saver import ModelSaver
+from losses import S2FLoss
 from early_stopper import EarlyStopper
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -47,7 +49,7 @@ parser.add_argument("--gpu", type=int, default=0,
 parser.add_argument("--num-workers", type=int, default=12,
                     help="Number of workers for the train and validation dataloaders")
 
-parser.add_argument("--dataloader-type", type=str, default="one_to_one", choices=["all_to_all", "one_to_one"],
+parser.add_argument("--dataloader-type", type=str, default="all_to_one", choices=["all_to_all", "one_to_one", "all_to_one"],
                     help="Type of the dataloader (all_to_all takes much more time, because it creates much more training pairs)")
 
 parser.add_argument("--face-encoder", type=str, default="vgg_face_serengil", choices=["vgg_face_serengil", "vgg_face_16_rcmalli"],
@@ -76,56 +78,18 @@ parser.add_argument("--early-stopping", action="store_true",
 parser.add_argument("--early-stopping-patience", type=int, default=5,
                     help="Patience for early stopping - allowed number of epochs with no improvement")
 
+parser.add_argument("--fine-tune", action="store_true",
+                    help="unfreeze and train model")
 
-class S2FLoss(nn.Module):
-    def __init__(self, face_encoder_last_layer, face_decoder_first_layer, coe_1=30, coe_2=2, coe_3=50):
-        super().__init__()
-        self.face_encoder_last_layer = face_encoder_last_layer
-        self.face_decoder_first_layer = face_decoder_first_layer
-        self.mae_loss = nn.L1Loss()
-        self.coe_1 = coe_1
-        self.coe_2 = coe_2
-        self.coe_3 = coe_3
-
-    def forward(self, pred, true):
-        sum_loss = 0
-        loss_base, loss_face_encoder, loss_face_decoder = 0, 0, 0
-
-        # loss_base - v_f and v_s distance part
-        vs_normalized = pred / norm(pred)
-        vf_normalized = true / norm(true)
-        loss_base = torch.pow(norm(vf_normalized - vs_normalized), 2)
-        loss_base *= self.coe_1
-        sum_loss += loss_base
-
-        # loss_face_encoder - face encoder last layer activation part
-        vgg_v_s = self.face_encoder_last_layer(pred)
-        with torch.no_grad():
-            vgg_v_f = self.face_encoder_last_layer(true)
-        loss_face_encoder = self.knowledge_distilation(vgg_v_f, vgg_v_s)
-        loss_face_encoder *= self.coe_2
-        sum_loss += loss_face_encoder
-
-        # loss_face_decoder - face decoder first layers activation part
-        dec_v_s = self.face_decoder_first_layer(pred)
-        with torch.no_grad():
-            dec_v_f = self.face_decoder_first_layer(true)
-        loss_face_decoder = self.mae_loss(dec_v_f, dec_v_s)
-        loss_face_decoder *= self.coe_3
-        sum_loss += loss_face_decoder
-
-        return sum_loss, loss_base, loss_face_encoder, loss_face_decoder
-    
-    def knowledge_distilation(self, a, b, T=2):
-        p_a = F.softmax(a / T, dim=1)
-        p_b = F.log_softmax(b / T, dim=1)
-        return -(p_a * p_b).sum()
+parser.add_argument("--unfreeze-number", type=int, default=-1,
+                    help="determines from which layer model should be unfrozen (-1 means unfreeze all layers)")
 
 
 def get_device(choice):
     if choice >= 0:
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{choice}")
+            torch.backends.cudnn.benchmark = True
         else:
             raise ValueError("GPU training was chosen but cuda is not available")
     else:
@@ -156,8 +120,8 @@ def save_face_visualizations(args, face_decoder, voice_encoder_embeddings, epoch
         axes.imshow(temp_image.permute(1, 2, 0))
         axes.set_title("Reconstructed image")
         axes.axis("off")
-        temp_image = landmarks_predicted[0].cpu().view(72, 2)
-        x, y =zip(*temp_image.squeeze(0))
+        # temp_image = landmarks_predicted[0].cpu().view(72, 2)
+        # x, y =zip(*temp_image.squeeze(0))
         # axes.scatter(x, y, c='red', marker='o', s=2)
 
         plt.tight_layout()
@@ -166,6 +130,7 @@ def save_face_visualizations(args, face_decoder, voice_encoder_embeddings, epoch
             os.makedirs(directory)
         plt.savefig(f"{directory}/{epoch}.jpg")
         plt.clf()
+        plt.close()
 
 
 def save_history_plots(args, history):
@@ -183,6 +148,7 @@ def save_history_plots(args, history):
             os.makedirs(directory)
         plt.savefig(f"{directory}/{loss_key}.jpg")
         plt.clf()
+        plt.close()
 
 
 def run(args, ast, optimizer, loss_fn, model_saver, early_stopper, train_dataloader, val_dataloader, face_decoder, device, start_epoch=0, history=[]):
@@ -252,18 +218,21 @@ def run(args, ast, optimizer, loss_fn, model_saver, early_stopper, train_dataloa
                 return
 
 
-
 def main():
     args = parser.parse_args()
 
     device = get_device(args.gpu)
 
+    print(f"Dataloader: {args.dataloader_type}")
     if args.dataloader_type == "all_to_all":
         train_dataset = S2fDatasetAlltoAll(args.train_dataset_path, is_ast=True)
         val_dataset = S2fDatasetAlltoAll(args.val_dataset_path, is_ast=True)
     elif args.dataloader_type == "one_to_one":
         train_dataset = S2fDatasetOneToOne(args.train_dataset_path, is_ast=True)
         val_dataset = S2fDatasetOneToOne(args.val_dataset_path, is_ast=True)
+    elif args.dataloader_type == "all_to_one":
+        train_dataset = S2fDatasetAllToOne(args.train_dataset_path, is_ast=True)
+        val_dataset = S2fDatasetAllToOne(args.val_dataset_path, is_ast=True)
     else:
         raise ValueError(f"Dataloader '{args.dataloader_type}' does not exist")
 
@@ -271,13 +240,19 @@ def main():
     val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
     ast = AutoModelForAudioClassification.from_pretrained("MIT/ast-finetuned-audioset-10-10-0.4593", num_labels=4096, ignore_mismatched_sizes=True).to(device)
+    head = ast.classifier
+    new_head = nn.Sequential(
+        head,
+        nn.ReLU()
+    )
+    ast.classifier = new_head
     # freeze every layer but - classifier.dense.bias and classifier.dense.weight
     for name, param in ast.named_parameters():
-        if name != "classifier.dense.weight" and name != "classifier.dense.bias":
+        if name != "classifier.0.dense.weight" and name != "classifier.0.dense.bias":
             param.requires_grad = False
         else:
             nn.init.trunc_normal_(param)
-   
+
     face_decoder = FaceDecoder().to(device)
     face_decoder_checkpoint = torch.load(args.face_decoder_weights_path)
     face_decoder.load_state_dict(face_decoder_checkpoint["model_state_dict"])
@@ -286,46 +261,66 @@ def main():
     face_encoder = get_face_encoder(args.face_encoder, args.face_encoder_weights_path).to(device)
     face_encoder.eval()
 
+    print(f"lr: {args.learning_rate}")
     optimizer = optim.Adam(ast.parameters(), lr=args.learning_rate)
-    loss_fn = S2FLoss(face_encoder.get_last_layer_activation, face_decoder.get_predifined_layer_activation)
+    loss_fn = S2FLoss(face_encoder.get_last_layer_activation, face_decoder.get_predifined_layer_activation, coe_1=30, coe_2=2, coe_3=50)
 
     early_stopper = None
     if args.early_stopping:
         early_stopper = EarlyStopper(args.early_stopping_patience)
 
     if args.continue_training_path is None:
+        print("HEAD TRAINING")
         # Train new model
         model_saver = ModelSaver(f"{args.save_folder_path}/latest_model.pt",
                             f"{args.save_folder_path}/best_model.pt")
         history = run(args, ast, optimizer, loss_fn, model_saver, early_stopper, train_dataloader, val_dataloader, face_decoder, device)
-    else:
+    elif args.continue_training_path is not None and args.fine_tune is None:
+        print("CONTINUE HEAD TRAINING")
         # Continue training existing model
         checkpoint = torch.load(args.continue_training_path)
         epoch = checkpoint["epoch"] + 1
         model_saver = ModelSaver(f"{args.save_folder_path}/latest_model.pt",
-                            f"{args.save_folder_path}/best_model.pt",
-                            checkpoint["best_loss"])
+                                 f"{args.save_folder_path}/best_model.pt",
+                                 checkpoint["best_loss"])
+        ast.load_state_dict(checkpoint["model_state_dict"])
+        # optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        history = checkpoint["history"]
+        history = run(args, ast, optimizer, loss_fn, model_saver, early_stopper, train_dataloader, val_dataloader, face_decoder, device, epoch, history)
+    elif args.continue_training_path is not None and args.fine_tune is not None:
+        print("FINE TUNNING")
+        checkpoint = torch.load(args.continue_training_path)
+        epoch = checkpoint["epoch"] + 1
+        model_saver = ModelSaver(f"{args.save_folder_path}/latest_model.pt",
+                                 f"{args.save_folder_path}/best_model.pt",
+                                 checkpoint["best_loss"])
         ast.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         history = checkpoint["history"]
+        
+        for name, param in ast.named_parameters():
+            param.requires_grad = True
+        if args.unfreeze_number != -1:
+            counter = 1
+            for name, param in ast.named_parameters():
+                if counter <= args.unfreeze_number:
+                    param.requires_grad = False
+                counter += 1
+        for name, param in ast.named_parameters():
+            print(f"{name}, {param.requires_grad}")
+        
+        print(f"learning_rate_fine_tune: {args.learning_rate_fine_tune}")
+        optimizer = optim.Adam(ast.parameters(), lr=args.learning_rate_fine_tune)
+
+        train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size_fine_tune, shuffle=True, num_workers=args.num_workers)
+        val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size_fine_tune, shuffle=False, num_workers=args.num_workers)
+        
+        model_saver.start_finetune(epoch)
+
         history = run(args, ast, optimizer, loss_fn, model_saver, early_stopper, train_dataloader, val_dataloader, face_decoder, device, epoch, history)
+    else:
+        print("ERROR - wrong configuration")
 
-    print("FINE TUNNING")
-    best_checkpoint = torch.load(f"{args.save_folder_path}/best_model.pt")
-    epoch = best_checkpoint["epoch"] + 1
-    history = best_checkpoint["history"]
-    # unfreeze whole model
-    for name, param in ast.named_parameters():
-        param.requires_grad = True
-    optimizer = optim.Adam(ast.parameters(), lr=args.learning_rate_fine_tune)
-    early_stopper.reset_state()
-
-    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size_fine_tune, shuffle=True, num_workers=args.num_workers)
-    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size_fine_tune, shuffle=False, num_workers=args.num_workers)
-    
-    model_saver.start_finetune(epoch)
-
-    run(args, ast, optimizer, loss_fn, model_saver, early_stopper, train_dataloader, val_dataloader, face_decoder, device, epoch, history)
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from datasets.face_decoder_dataset import FaceDecoderDataset
 from models.face_encoder import VGGFace16_rcmalli, VGGFace_serengil
 from models.face_decoder import FaceDecoder
 from model_saver import ModelSaver
+from losses import FaceDecoderLoss
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -53,38 +54,6 @@ parser.add_argument("--save-images", action="store_true",
 
 parser.add_argument("--continue-training-path", type=str,
                     help="path to the file of the model that will be used to continue training. If not passed then new model will be trained")
-
-
-class FaceDecoderLoss(nn.Module):
-    def __init__(self, coef_landmarks=1, coef_textures=100, coef_embeddings=100):
-        super().__init__()
-        self.coef_landmarks = coef_landmarks
-        self.coef_textures = coef_textures
-        self.coef_embeddings = coef_embeddings
-        self.mse_loss = nn.MSELoss()
-        self.mae_loss = nn.L1Loss()
-        self.cos_loss = nn.CosineEmbeddingLoss()
-
-    def forward(self, landmarks_true, landmarks_predicted,
-                textures_true, textures_predicted,
-                embeddings_true=None, embeddings_predicted=None):
-        sum_loss = 0
-        loss_landmarks, loss_textures, loss_embeddings = torch.zeros(1), torch.zeros(1), torch.zeros(1)
-
-        # MSE for landmarks
-        if landmarks_true is not None and landmarks_predicted is not None:
-            loss_landmarks = self.coef_landmarks * self.mse_loss(landmarks_true, landmarks_predicted)
-            sum_loss += loss_landmarks
-        # MAE for textures
-        if textures_true is not None and textures_predicted is not None:
-            loss_textures = self.coef_textures * self.mae_loss(textures_true, textures_predicted)
-            sum_loss += loss_textures
-        # Cosine Similarity loss for embeddings
-        if embeddings_true is not None and embeddings_predicted is not None:
-            loss_embeddings = self.coef_embeddings * self.cos_loss(embeddings_true, embeddings_predicted, torch.tensor([1]).to("cuda"))
-            sum_loss += loss_embeddings
-
-        return sum_loss, loss_landmarks, loss_textures, loss_embeddings
 
 
 def get_device(choice):
