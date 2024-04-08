@@ -70,6 +70,8 @@ def main():
             face_landmarks = calculate_landmarks(img)
             if face_landmarks is not None:
                 save_face_landmarks(args, root, file_name, face_landmarks)
+            else:
+                print(f"Landmarsk not saved for: {file_path}")
 
 
 if __name__ == "__main__":

@@ -55,6 +55,7 @@ def load_face_encoder(backend, weights_path):
         raise ValueError(f"Unrecognized backend for face encoder: {backend}")
     
     model.load_state_dict(torch.load(weights_path))
+    model.eval()
     return model
 
 
