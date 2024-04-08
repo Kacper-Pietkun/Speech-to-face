@@ -86,7 +86,8 @@ class VoiceEncoder(nn.Module):
         self.layers.append(self.layer10)
 
         self.layer11 = nn.Sequential(
-            nn.Linear(in_features=4096, out_features=4096)
+            nn.Linear(in_features=4096, out_features=4096),
+            nn.ReLU()
         )
         self.layers.append(self.layer11)
         
