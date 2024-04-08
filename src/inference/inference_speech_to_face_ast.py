@@ -13,6 +13,7 @@ from matplotlib import pyplot as plt
 import librosa
 import data_preprocessing.ast_audio_preprocess as audio_processing
 import numpy as np
+import torch.nn as nn
 
 
 parser = ArgumentParser("Use trained VoiceEncoder and FaceDecoder to generate face image out of audio file")
@@ -36,10 +37,10 @@ parser.add_argument("--audio-length", default=10.26, type=float,
 parser.add_argument("--sampling-rate", default=16000, type=int,
                     help="The number of samples per second of audio")
 
-parser.add_argument("--mean", default=-4.2677393, type=float, #-1.3173023e-06
+parser.add_argument("--mean", default=-5.460994, type=float, #-1.3173023e-06
                     help="Mean value of the audio files (calculated on the training set)")
 
-parser.add_argument("--std", default=4.5689974, type=float, #0.039394222
+parser.add_argument("--std", default=3.1129124, type=float, #0.039394222
                     help="Standard deviation value of the audio files (calculated on the training set)")
 
 
@@ -65,6 +66,12 @@ def main():
     face_decoder.load_state_dict(face_decoder_checkpoint["model_state_dict"])
 
     ast = AutoModelForAudioClassification.from_pretrained("MIT/ast-finetuned-audioset-10-10-0.4593", num_labels=4096, ignore_mismatched_sizes=True).to(device)
+    head = ast.classifier
+    new_head = nn.Sequential(
+        head,
+        nn.ReLU()
+    )
+    ast.classifier = new_head
     ast.eval()
 
     ast_checkpoint = torch.load(args.ast_path)
@@ -77,13 +84,9 @@ def main():
     waveform, _ = librosa.load(normalized_file_path, duration=args.audio_length, sr=args.sampling_rate, mono=True)
     waveform = audio_processing.stretch_audio(args, waveform)
 
-    inputs1 = feature_extractor(waveform, sampling_rate=args.sampling_rate, padding="max_length", return_tensors="np")
-    input_values = torch.tensor(inputs1.input_values).to(device)
+    inputs = feature_extractor(waveform, sampling_rate=args.sampling_rate, padding="max_length", return_tensors="np")
+    input_values = torch.tensor(inputs.input_values).to(device)
     os.remove(normalized_file_path)
-
-
-
-
     
     with torch.no_grad():
         voice_encoder_embeddings = ast(input_values)
