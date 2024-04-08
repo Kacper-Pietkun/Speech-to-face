@@ -4,9 +4,10 @@ import numpy as np
 
 
 class S2fDatasetAllToOne(Dataset):
-    def __init__(self, root_folder, is_ast=False, transform=None, target_transform=None):
+    def __init__(self, root_folder, is_ast=False, transform=None, target_transform=None, n=-1):
         self.root_folder = root_folder
         self.transform = transform
+        self.n = n
         self.target_transform = target_transform
         self.emebddings_paths = []
         self.spectrograms_paths = []
@@ -27,7 +28,11 @@ class S2fDatasetAllToOne(Dataset):
             if num_spec == 0 or num_emb == 0:
                 continue # skip identities which does not have spectrograms or embeddings
             
-            min_number = 20 if num_spec > 20 else num_spec
+            if self.n == -1:
+                min_number = num_spec
+            else:
+                min_number = self.n if num_spec > self.n else num_spec
+
             self.spectrograms_paths += person_spectrograms[:min_number]
 
             self.emebddings_paths += (min_number * [person_embeddings[0]])

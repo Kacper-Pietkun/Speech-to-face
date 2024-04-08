@@ -10,7 +10,7 @@ python audio_spectrograms.py --data-dir <path_to_the_directory_where_data_is_sto
                              --save-dir <path_to_the_directory_where_spectrograms_will_be_saved>
 ```
 
-The `ast_audio_spectrogram.py` works in a similar way. It can be used to preprocess raw audio files to be compatible with AST (Audio Spectrogram Transformer) network. Usage of this script is also similar, however you need to pass two additional arguments: `mean` and `std`, which represent values that will be used to normalize log-Mel features. You can use the default ones (the one proposed by the authors), however, you can calculate them based on your dataset with `get_aduio_norm_stats.py` script.
+The `ast_audio_spectrogram.py` works in a similar way. It can be used to preprocess raw audio files to be compatible with AST (Audio Spectrogram Transformer) network. Usage of this script is also similar, however you need to pass two additional arguments: `mean` and `std`, which represent values that will be used to normalize log-Mel features. You can use the default ones (the one proposed by the authors), however, you can calculate them based on your dataset with `get_audio_norm_stats.py` script.
 
 # Images preprocessing - face embeddings
 
