@@ -6,6 +6,7 @@ import os
 from tqdm import tqdm
 import ffmpeg
 import subprocess
+import concurrent.futures
 
 
 ACCEPTED_AUDIO_EXTENSIONS = ['.m4a', '.wav']
@@ -36,6 +37,10 @@ parser.add_argument("--n-fft", default=512, type=int,
 
 parser.add_argument("--power", default=0.3, type=float,
                     help="power applied during power-law compression")
+
+parser.add_argument("--num-threads", default=12, type=int,
+                    help="Number of threads to process audio")
+
 
 def normalize_audio(file_path, root, file_base):
     output_path = os.path.join(root, f"{file_base}_normalized.wav")
@@ -70,14 +75,13 @@ def power_law_compression(args, spectrogram):
     return compressed_spectrogram
 
 
-def save_spectrogram(args, root, file_name, spectrogram):
+def save_spectrogram(args, root, file_base, data):
     additional_dirs = os.path.relpath(root, start=args.data_dir)
     save_dir = os.path.join(args.save_dir, additional_dirs)
     os.makedirs(save_dir,  exist_ok=True)
-    name, _ = os.path.splitext(file_name)
-    name += ".npy"
-    new_file_path = os.path.join(save_dir, name)
-    np.save(new_file_path, spectrogram)
+    file_base += ".npy"
+    new_file_path = os.path.join(save_dir, file_base)
+    np.save(new_file_path, data)
 
 
 def visualize_spectrogram(args, spectrogram):
@@ -89,9 +93,22 @@ def visualize_spectrogram(args, spectrogram):
     plt.show()
 
 
+def process_audio(args, file_path, root, file_base):
+    normalized_file_path = normalize_audio(file_path, root, file_base)
+    waveform, _ = librosa.load(normalized_file_path, duration=args.audio_length, sr=args.sampling_rate, mono=True)
+    waveform = stretch_audio(args, waveform)
+    spectrogram = compute_spectrograms(args, waveform)
+    spectrogram = power_law_compression(args, spectrogram)
+    os.remove(normalized_file_path)
+    save_spectrogram(args, root, file_base, spectrogram)
+
+
 def main():
     args = parser.parse_args()
 
+    roots = []
+    file_paths = []
+    file_bases = []
     for root, _, files in tqdm(os.walk(args.data_dir), desc="Outer Loop"):
         for file_name in tqdm(files, desc="Inner Loop", leave=False):
             file_path = os.path.join(root, file_name)
@@ -99,14 +116,14 @@ def main():
             if extension not in ACCEPTED_AUDIO_EXTENSIONS:
                 continue
 
-            normalized_file_path = normalize_audio(file_path, root, file_base)
-            waveform, _ = librosa.load(normalized_file_path, duration=args.audio_length, sr=args.sampling_rate, mono=True)
-            waveform = stretch_audio(args, waveform)
-            spectrogram = compute_spectrograms(args, waveform)
-            # visualize_spectrogram(args, spectrogram)
-            spectrogram = power_law_compression(args, spectrogram)
-            save_spectrogram(args, root, file_name, spectrogram)
-            os.remove(normalized_file_path)
+            if int(file_base) <= 20:
+                roots.append(root)
+                file_paths.append(file_path)
+                file_bases.append(file_base)
+                
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.num_threads) as executor:
+        tasks = [executor.submit(process_audio, args, file_path, root, file_base) for (file_path, root, file_base) in zip(file_paths, roots, file_bases)]
 
 if __name__ == "__main__":
     main()
