@@ -37,10 +37,10 @@ parser.add_argument("--audio-length", default=10.26, type=float,
 parser.add_argument("--sampling-rate", default=16000, type=int,
                     help="The number of samples per second of audio")
 
-parser.add_argument("--mean", default=-5.460994, type=float, #-1.3173023e-06
+parser.add_argument("--mean", default=-5.460994, type=float,
                     help="Mean value of the audio files (calculated on the training set)")
 
-parser.add_argument("--std", default=3.1129124, type=float, #0.039394222
+parser.add_argument("--std", default=3.1129124, type=float,
                     help="Standard deviation value of the audio files (calculated on the training set)")
 
 
