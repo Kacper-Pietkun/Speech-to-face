@@ -17,7 +17,7 @@ from datasets.s2f_dataset_one_to_one import S2fDatasetOneToOne
 from datasets.s2f_dataset_all_to_one import S2fDatasetAllToOne
 from models.face_encoder import VGGFace16_rcmalli, VGGFace_serengil
 from models.face_decoder import FaceDecoder
-from models.voice_encoder import VoiceEncoder
+from models.voice_encoder import VE_conv
 from model_saver import ModelSaver
 from losses import S2FLoss
 import matplotlib.pyplot as plt
@@ -216,7 +216,7 @@ def main():
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
-    voice_encoder = VoiceEncoder().to(device)
+    voice_encoder = VE_conv().to(device)
     face_decoder = FaceDecoder().to(device)
     face_decoder_checkpoint = torch.load(args.face_decoder_weights_path)
     face_decoder.load_state_dict(face_decoder_checkpoint["model_state_dict"])

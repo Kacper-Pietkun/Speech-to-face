@@ -1,12 +1,12 @@
 import torch.nn as nn
 
 
-class VoiceEncoder(nn.Module):
+class VE_conv(nn.Module):
     """
     Input to the model should be an spectrogram calculated from an audio file 6 seconds - with shape (2, 257, 601)
     """
     def __init__(self):
-        super(VoiceEncoder, self).__init__()
+        super(VE_conv, self).__init__()
 
         self.layers = []
         

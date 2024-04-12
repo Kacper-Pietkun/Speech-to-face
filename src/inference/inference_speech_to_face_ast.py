@@ -16,7 +16,7 @@ import numpy as np
 import torch.nn as nn
 
 
-parser = ArgumentParser("Use trained VoiceEncoder and FaceDecoder to generate face image out of audio file")
+parser = ArgumentParser("Use trained AST and FaceDecoder to generate face image out of audio file")
 
 parser.add_argument("--audio-file-path", type=str, required=True,
                     help="Path to the audio file")

@@ -6,7 +6,7 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 from argparse import ArgumentParser
-from models.voice_encoder import VoiceEncoder
+from models.voice_encoder import VE_conv
 from models.face_decoder import FaceDecoder
 import torch
 from matplotlib import pyplot as plt
@@ -14,7 +14,7 @@ import librosa
 import data_preprocessing.audio_spectrograms as audio_processing
 
 
-parser = ArgumentParser("Use trained VoiceEncoder and FaceDecoder to generate face image out of audio file")
+parser = ArgumentParser("Use trained VE_conv and FaceDecoder to generate face image out of audio file")
 
 parser.add_argument("--audio-file-path", type=str, required=True,
                     help="Path to the audio file")
@@ -68,7 +68,7 @@ def main():
     face_decoder_checkpoint = torch.load(args.face_decoder_path)
     face_decoder.load_state_dict(face_decoder_checkpoint["model_state_dict"])
 
-    voice_encoder = VoiceEncoder().to(device)
+    voice_encoder = VE_conv().to(device)
     voice_encoder.eval()
     voice_encoder_checkpoint = torch.load(args.voice_encoder_path)
     voice_encoder.load_state_dict(voice_encoder_checkpoint["model_state_dict"])

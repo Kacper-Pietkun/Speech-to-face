@@ -6,7 +6,7 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 from argparse import ArgumentParser
-from models.voice_encoder import VoiceEncoder
+from models.voice_encoder import VE_conv
 from models.face_decoder import FaceDecoder
 import torch
 from matplotlib import pyplot as plt
@@ -20,7 +20,7 @@ from tqdm import tqdm
 ACCEPTED_AUDIO_EXTENSIONS = ['.m4a', '.wav']
 
 
-parser = ArgumentParser("Use trained VoiceEncoder and FaceDecoder to generate face image \
+parser = ArgumentParser("Use trained VE_conv and FaceDecoder to generate face image \
                          out of audio file for every adio in the given directory")
 
 parser.add_argument("--test-set-path", type=str, required=True,
@@ -79,7 +79,7 @@ def main():
     face_decoder_checkpoint = torch.load(args.face_decoder_path)
     face_decoder.load_state_dict(face_decoder_checkpoint["model_state_dict"])
 
-    voice_encoder = VoiceEncoder().to(device)
+    voice_encoder = VE_conv().to(device)
     voice_encoder.eval()
     voice_encoder.eval()
 

@@ -14,7 +14,7 @@ In this project we didn't implement and train this model ourselves, we used exis
 However, these implementations are written in TensorFlow and we are using PyTorch, so we had to reimplement them in PyTroch (also we converted trained weights from TensorFlow to PyTorch - see `src/tensorflow_to_pytorch` directory)
 
 # Voice Encoder
-Architecture is based on a [Speech2Face: Learning the Face Behind a Voice](https://arxiv.org/abs/1905.09773) paper.
+VE_conv is the architecture is based on a [Speech2Face: Learning the Face Behind a Voice](https://arxiv.org/abs/1905.09773) paper.
 - **Goal:** Convert speech of a person (spectrogram generated from the audio file) into a feature vector representation of the face of that person (face embedding)
 - **Model input:** spectrogram calculated from a 6 seconds audio file representing person's speech (using stft from librosa library)
 - **Model output:** 4096-D feature vector of the face (voice encoder tries to learn to generate face embedding of the person given speech of that person).

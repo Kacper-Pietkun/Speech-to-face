@@ -2,7 +2,7 @@
 We don't train FaceEncoder since we are using already trained model
 
 # Voice Encoder
-Run `train_voice_encoder.py` script to train VoiceEncoder
+Run `train_ve_conv.py` script to train VE_conv VoiceEncoder
 
 Loss functions conists of three components:
     1. Distance between ground truth 4096-D face feature vector and the predicted 4096-D face feature vector
@@ -20,11 +20,11 @@ Additionally:
 - If possible train VoiceEncoder with GPU, by setting `--gpu` parameter to 1, because CPU training is very slow
 
 
-Run `train_ast.py` if you want to train Audio Spectrogram Transformer as the VoiceEncoder. The script is almost identical to the `train_voice_encoder.py` script, however there are some differences. For example, you can use early stopping (specify `--early-stopping` parameter). Moreover, the AST model training is splitted into two parts. During the first part, whole model is frozen except the head, which is trained. During the second part whole model is unfrozen and the model is fine-tuned.
+Run `train_ast.py` if you want to train AST VoiceEncoder. The script is almost identical to the `train_voice_encoder.py` script, however there are some differences. For example, you can use early stopping (specify `--early-stopping` parameter). Moreover, the AST model training is splitted into two parts. During the first part, whole model is frozen except the head, which is trained. During the second part whole model is unfrozen and the model is fine-tuned.
 
 # Face Decoder
 
-Run `train_face_decoderr.py` script to train FaceDecoder
+Run `train_face_decoder.py` script to train FaceDecoder
 
 Loss functions conists of two components (the third component was not implemented):
     1. Difference between ground truth and predicted face landmarks (MSE) 
