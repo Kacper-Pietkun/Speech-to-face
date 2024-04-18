@@ -5,7 +5,6 @@ from argparse import ArgumentParser
 from tqdm import tqdm
 import numpy as np
 import os
-import face_recognition
 import torch
 import torchvision.transforms as transforms
 
