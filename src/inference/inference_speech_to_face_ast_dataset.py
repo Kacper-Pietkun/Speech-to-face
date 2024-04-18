@@ -89,10 +89,6 @@ def main():
 
     ctr = 1
     for root, _, files in tqdm(os.walk(args.test_set_path), desc="Outer Loop"):
-        print(os.path.basename(root))
-        if os.path.basename(root) != "Fred_Rutten" and \
-            os.path.basename(root) != "Mancini" and os.path.basename(root) != "Jacques_Gamblin":
-            continue
         for file_name in tqdm(files, desc="Inner Loop", leave=False):
             file_path = os.path.join(root, file_name)
             file_base, extension = os.path.splitext(file_name)
@@ -124,6 +120,7 @@ def main():
             ctr += 1
             plt.clf()
             plt.close()
+            break
 
 
 
