@@ -61,7 +61,7 @@ In the project we used three different datasets:
 `HQ-VoxCeleb` dataset was used to train FaceDecoder model. To train VoiceEncoder model we filtered `VoxCeleb1` and `VoxCeleb2` datasets to get audio files for the identities present in `HQ-VoxCeleb` (because `HQ-VoxCeleb` does not contain normalized face images for every identity present in `VoxCeleb1` or `VoxCeleb2` datasets)
 
 
-## Results
+## Results (cherry-picked)
 We achieved the best results using fine-tuned AST as VoiceEncoder model. Moreover, we used VGGFace_serengil as the FaceEncoder when training the VoiceEncoder and FaceDecoder models. The results obtained when using our trained from scratch VE_conv model were much worse. In the image below you can see the conclusion of our work. In the left column you can see the original image of the person from the HQ-VoxCeleb dataset. In the middle column you can see the recostruction of the face from the Face-to-Face pipeline (i.e. convert image to the face embbedding and reconstruct the image - voice is not used in this pipeline). Finally in the right column you can see the results from the Speech-to-Face pipeline (i.e. convert speech to the spectrogram, calculate face embedding from that spectrogram, reconstruct the face).
 
 ![Results](images/results.png "Results")
