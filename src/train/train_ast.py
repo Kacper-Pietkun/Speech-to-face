@@ -89,7 +89,7 @@ def get_device(choice):
     if choice >= 0:
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{choice}")
-            torch.backends.cudnn.benchmark = True
+            # torch.backends.cudnn.benchmark = True
         else:
             raise ValueError("GPU training was chosen but cuda is not available")
     else:
@@ -226,7 +226,8 @@ def main():
     print(f"Dataloader: {args.dataloader_type}")
     if args.dataloader_type == "all_to_all":
         train_dataset = S2fDatasetAlltoAll(args.train_dataset_path, is_ast=True)
-        val_dataset = S2fDatasetAlltoAll(args.val_dataset_path, is_ast=True)
+        # val_dataset = S2fDatasetAlltoAll(args.val_dataset_path, is_ast=True)
+        val_dataset = S2fDatasetOneToOne(args.val_dataset_path, is_ast=True)
     elif args.dataloader_type == "one_to_one":
         train_dataset = S2fDatasetOneToOne(args.train_dataset_path, is_ast=True)
         val_dataset = S2fDatasetOneToOne(args.val_dataset_path, is_ast=True)
@@ -246,6 +247,7 @@ def main():
         nn.ReLU()
     )
     ast.classifier = new_head
+    ast = ast.to(device)
     # freeze every layer but - classifier.dense.bias and classifier.dense.weight
     for name, param in ast.named_parameters():
         if name != "classifier.0.dense.weight" and name != "classifier.0.dense.bias":
@@ -310,6 +312,7 @@ def main():
             print(f"{name}, {param.requires_grad}")
         
         print(f"learning_rate_fine_tune: {args.learning_rate_fine_tune}")
+        print(f"batch_size_fine_tune: {args.batch_size_fine_tune}")
         optimizer = optim.Adam(ast.parameters(), lr=args.learning_rate_fine_tune)
 
         train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size_fine_tune, shuffle=True, num_workers=args.num_workers)
