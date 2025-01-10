@@ -5,6 +5,11 @@ The general aim of this project is to recreate and improve Speech-to-Face pipeli
 
 Whole implementation is based on PyTorch framework
 
+## Update 10.01.2025
+Link to google drive with trained weights of face_decoder and ast models - [drive](https://drive.google.com/drive/u/2/folders/1dwHbmtdppmsrUHks9Gw82zDA15qJm9o8)
+
+Link to recently published paper on this project - [Face From Voice: PyTorch Adaptation of Speech2Face Framework](https://www.sciencedirect.com/science/article/pii/S1877050924024153)
+
 ## Overview
 In this project you will find implementation of three models:
 - **Voice Encoder**
